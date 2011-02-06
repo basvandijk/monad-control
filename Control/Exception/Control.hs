@@ -169,14 +169,14 @@ handleJust p handler a = controlIO $ \runInIO →
                            E.handleJust p (\e → runInIO (handler e))
                                           (runInIO a)
 
-sequenceEither ∷ Monad m ⇒ Either e (m a) → m (Either e a)
-sequenceEither (Left e)  = return $ Left e
-sequenceEither (Right m) = liftM Right m
-
 
 --------------------------------------------------------------------------------
 -- ** The @try@ functions
 --------------------------------------------------------------------------------
+
+sequenceEither ∷ Monad m ⇒ Either e (m a) → m (Either e a)
+sequenceEither (Left e)  = return $ Left e
+sequenceEither (Right m) = liftM Right m
 
 -- |Generalized version of 'E.try'.
 try ∷ (MonadControlIO m, Exception e) ⇒ m a → m (Either e a)
