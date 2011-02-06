@@ -82,10 +82,10 @@ class MonadIO m ⇒ MonadControlIO m where
   -- foo' a = 'controlIO' $ \runInIO ->    -- runInIO :: m a -> 'IO' (m a)
   --            foo $ runInIO a         -- uses foo :: 'IO' (m a) -> 'IO' (m a)
   -- @
-  liftControlIO ∷ (RunInBase m IO → IO b) → m b
+  liftControlIO ∷ (RunInBase m IO → IO a) → m a
 
 -- | An often used composition: @controlIO = 'join' . 'liftControlIO'@
-controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m b)) → m b
+controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m a)) → m a
 controlIO = join ∘ liftControlIO
 
 
