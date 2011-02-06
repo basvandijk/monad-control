@@ -197,7 +197,7 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 -- instance MonadControlIO IO where
 --     liftControlIO = idLiftControl
 -- @
-idLiftControl ∷ Monad m ⇒ ((∀ b. m b → m (m b)) → m a) → m a
+idLiftControl ∷ Monad m ⇒ (RunInBase m m → m a) → m a
 idLiftControl f = f $ liftM return
 
 type RunInBase m base = ∀ b. m b → base (m b)
