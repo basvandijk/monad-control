@@ -1,0 +1,286 @@
+0.1
+
+(Released on: Sat Feb 5 23:36:21 UTC 2011)
+
+* Initial release
+
+This is the announcement message sent to the Haskell mailinglists:
+http://www.mail-archive.com/haskell@haskell.org/msg23278.html
+
+
+Dear all,
+
+Several attempts have been made to lift control operations (functions
+that use monadic actions as input instead of just output) through
+monad transformers:
+
+MonadCatchIO-transformers[1] provided a type class that allowed to
+overload some often used control operations (catch, block and
+unblock). Unfortunately that library was limited to those operations.
+It was not possible to use, say, alloca in a monad transformer. More
+importantly however, the library was broken as was explained[2] by
+Michael Snoyman. In response Michael created the MonadInvertIO type
+class which solved the problems. Then Anders Kaseorg created the
+monad-peel library which provided an even nicer implementation.
+
+monad-control is a rewrite of monad-peel that uses CPS style
+operations and exploits the RankNTypes language extension to simplify
+and speedup most functions. A very preliminary and not yet fully
+representative, benchmark shows that monad-control is on average about
+2.6 times faster than monad-peel:
+
+bracket:  2.4 x faster
+bracket_: 3.1 x faster
+catch:    1.8 x faster
+try:      4.0 x faster
+mask:     2.0 x faster
+
+Note that, although the package comes with a test suite that passes, I
+still consider it highly experimental.
+
+
+API DOCS:
+
+http://hackage.haskell.org/package/monad-control
+
+
+INSTALLING:
+
+$ cabal update
+$ cabal install monad-control
+
+
+TESTING:
+
+The package contains a copy of the monad-peel test suite written by
+Anders. You can perform the tests using:
+
+$ cabal unpack monad-control
+$ cd monad-control
+$ cabal configure -ftest
+$ cabal test
+
+
+BENCHMARKING:
+
+$ darcs get http://bifunctor.homelinux.net/~bas/bench-monad-peel-control/
+$ cd bench-monad-peel-control
+$ cabal configure
+$ cabal build
+$ dist/build/bench-monad-peel-control/bench-monad-peel-control
+
+
+DEVELOPING:
+
+The darcs repository will be hosted on code.haskell.org ones that
+server is back online. For the time being you can get the repository
+from:
+
+$ darcs get http://bifunctor.homelinux.net/~bas/monad-control/
+
+
+TUTORIAL:
+
+This short unpolished tutorial will explain how to lift control
+operations through monad transformers. Our goal is to lift a control
+operation like:
+
+foo ∷ M a → M a
+
+where M is some monad, into a transformed monad like 'StateT M':
+
+foo' ∷ StateT M a → StateT M a
+
+The first thing we need to do is write an instance for the
+MonadTransControl type class:
+
+class MonadTrans t ⇒ MonadTransControl t where
+  liftControl ∷ (Monad m, Monad n, Monad o)
+              ⇒ (Run t n o → m a) → t m a
+
+If you ignore the Run argument for now, you'll see that liftControl is
+identical to the 'lift' method of the MonadTrans type class:
+
+class MonadTrans t where
+    lift ∷ Monad m ⇒ m a → t m a
+
+So the instance for MonadTransControl will probably look very much
+like the instance for MonadTrans. Let's see:
+
+instance MonadTransControl (StateT s) where
+    liftControl f = StateT $ \s → liftM (\x → (x, s)) (f run)
+
+So what is this run function? Let's look at its type:
+
+type Run t n o = ∀ b. t n b → n (t o b)
+
+The run function executes a transformed monadic action 't n b' in the
+non-transformed monad 'n'. In our case the 't' will be a StateT
+computation. The only way to run a StateT computation is to give it
+some state and the only state we have lying around is the one from the
+outer computation: 's'. So let's run it on 's':
+
+instance MonadTransControl (StateT s) where
+    liftControl f =
+        StateT $ \s →
+          let run t = ... runStateT t s ...
+          in liftM (\x → (x, s)) (f run)
+
+Now that we are able to run a transformed monadic action, we're almost
+done. Look at the type of Run again. The function should leave the
+result 't o b' in the monad 'n'. This 't o b' computation should
+contain the final state after running the supplied 't n b'
+computation. In case of our StateT it should contain the final state
+s':
+
+instance MonadTransControl (StateT s) where
+    liftControl f =
+        StateT $ \s →
+          let run t = liftM (\(x, s') → StateT $ \_ → return (x, s'))
+                            (runStateT t s)
+          in liftM (\x → (x, s)) (f run)
+
+This final computation, "StateT $ \_ → return (x, s')", can later be
+used to restore the final state. Now that we have our
+MonadTransControl instance we can start using it. Recall that our goal
+was to lift "foo ∷ M a → M a" into our StateT transformer yielding the
+function "foo' ∷ StateT M a → StateT M a".
+
+To define foo', the first thing we need to do is call liftControl:
+
+foo' t = liftControl $ \run → ...
+
+This captures the current state of the StateT computation and provides
+us with the run function that allows us to run a StateT computation on
+this captured state.
+
+Now recall the type of liftControl ∷ (Run t n o → m a) → t m a. You
+can see that in place of the ... we must fill in a value of type 'm
+a'. In our case this will be a value of type 'M a'. We can construct
+such a value by calling foo. However, foo expects an argument of type
+'M a'. Fortunately we can provide one if we convert the supplied 't'
+computation of type 'StateT M a' to 'M a' using our run function of
+type ∀ b. StateT M b → M (StateT o b):
+
+foo' t = ... liftControl $ \run → foo $ run t
+
+However, note that the run function returns the final StateT
+computation inside M. So the type of the right hand side is now
+'StateT M (StateT o b)'. We would like to restore this final state. We
+can do that using join:
+
+foo' t = join $ liftControl $ \run → foo $ run t
+
+That's it! Note that because it's so common to join after a
+liftControl I provide an abstraction for it:
+
+control = join ∘ liftControl
+
+Allowing you to simplify foo' to:
+
+foo' t = control $ \run → foo $ run t
+
+Probably the most common control operations that you want to lift
+through your transformers are IO operations. Think about: bracket,
+alloca, mask, etc.. For this reason I provide the MonadControlIO type
+class:
+
+class MonadIO m ⇒ MonadControlIO m where
+  liftControlIO ∷ (RunInBase m IO → IO a) → m a
+
+Again, if you ignore the RunInBase argument, you will see that
+liftControlIO is identical to the liftIO method of the MonadIO type
+class:
+
+class Monad m ⇒ MonadIO m where
+    liftIO ∷ IO a → m a
+
+Just like Run, RunInBase allows you to run your monadic computation
+inside your base monad, which in case of liftControlIO is IO:
+
+type RunInBase m base = ∀ b. m b → base (m b)
+
+The instance for the base monad is trivial:
+
+instance MonadControlIO IO where
+    liftControlIO = idLiftControl
+
+idLiftControl directly executes f and passes it a run function which
+executes the given action and lifts the result r into the trivial
+'return r' action:
+
+idLiftControl ∷ Monad m ⇒ ((∀ b. m b → m (m b)) → m a) → m a
+idLiftControl f = f $ liftM $ \r -> return r
+
+The instances for the transformers are all identical. Let's look at
+StateT and ReaderT:
+
+instance MonadControlIO m ⇒ MonadControlIO (StateT s m) where
+    liftControlIO = liftLiftControlBase liftControlIO
+
+instance MonadControlIO m ⇒ MonadControlIO (ReaderT r m) where
+    liftControlIO = liftLiftControlBase liftControlIO
+
+The magic function is liftLiftControlBase. This function is used to
+compose two liftControl operations, the outer provided by a
+MonadTransControl instance and the inner provided as the argument:
+
+liftLiftControlBase ∷ (MonadTransControl t, Monad base, Monad m, Monad (t m))
+                    ⇒ ((RunInBase m     base → base a) →   m a)
+                    → ((RunInBase (t m) base → base a) → t m a)
+liftLiftControlBase lftCtrlBase =
+  \f → liftControl $ \run →
+         lftCtrlBase $ \runInBase →
+           f $ liftM (join ∘ lift) ∘ runInBase ∘ run
+
+Basically it captures the state of the outer monad transformer using
+liftControl. Then it captures the state of the inner monad using the
+supplied lftCtrlBase function. If you recall the identical definitions
+of the liftControlIO methods: 'liftLiftControlBase liftControlIO' you
+will see that this lftCtrlBase function is the recursive step of
+liftLiftControlBase. If you use 'liftLiftControlBase liftControlIO' in
+a stack of monad transformers a chain of liftControl operations is
+created:
+
+liftControl $ \run1 -> liftControl $ \run2 -> liftControl $ \run3 -> ...
+
+This will recurse until we hit the base monad. Then
+liftLiftControlBase will finally run f in the base monad supplying it
+with a run function that is able to run a 't m a' computation in the
+base monad. It does this by composing the run and runInBase functions.
+Note that runInBase is basically the composition: '... ∘ run3 ∘ run2'.
+
+However, just composing the run and runInBase functions is not enough.
+Namely: runInBase ∘ run ∷ ∀ b. t m b → base (m (t m b)) while we need
+to have ∀ b. t m b → base (t m b). So we need to lift the 'm (t m b)'
+computation inside t yielding: 't m (t m b)' and then join that to get
+'t m b'.
+
+Now that we have our MonadControlIO instances we can start using them.
+Let's look at how to lift 'bracket' into a monad supporting
+MonadControlIO. Before we do that I define a little convenience
+function similar to 'control':
+
+controlIO = join ∘ liftControlIO
+
+Bracket just calls controlIO which captures the state of m and
+provides us with a runInIO function which allows us to run an m
+computation in IO:
+
+bracket ∷ MonadControlIO m
+        ⇒ m a → (a → m b) → (a → m c) → m c
+bracket before after thing =
+  controlIO $ \runInIO →
+    E.bracket (runInIO before)
+              (\m → runInIO $ m >>= after)
+              (\m → runInIO $ m >>= thing)
+
+I welcome any comments, questions or patches.
+
+Regards,
+
+Bas
+
+[1] http://hackage.haskell.org/package/MonadCatchIO-transformers
+[2] http://docs.yesodweb.com/blog/invertible-monads-exceptions-allocations/
+[3] http://hackage.haskell.org/package/monad-peel
