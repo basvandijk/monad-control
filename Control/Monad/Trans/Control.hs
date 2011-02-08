@@ -72,14 +72,16 @@ import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT),
 class MonadTrans t ⇒ MonadTransControl t where
   -- |@liftControl@ is used to peel off the outer layer of a transformed
   -- monadic action, allowing an transformed action @t m a@ to be
-  -- treated as a base action @m b@.
+  -- treated as a base action @m a@.
   --
   -- More precisely, @liftControl@ captures the monadic state of @t@ at the
-  -- point where it is bound (in @t n@), yielding a function of type
-  -- @'Run' t n o = t n a -> n (t o a)@
-  -- this function runs a transformed monadic action @t n a@
-  -- in the base monad @n@ using the captured state, and leaves the
-  -- result @t o a@ in the monad @n@ after all side effects in @n@
+  -- point where it is bound (in @t m@), yielding a function of type:
+  --
+  -- @'Run' t = forall n o b. (Monad n, Monad o) => t n b -> n (t o b)@
+  --
+  -- This function runs a transformed monadic action @t n b@
+  -- in the inner monad @n@ using the captured state, and leaves the
+  -- result @t o b@ in the monad @n@ after all side effects in @n@
   -- have occurred.
   --
   -- This can be used to lift control operations with types such as
@@ -92,18 +94,13 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- foo' a = 'control' $ \run ->    -- run :: t M a -> M (t M a)
   --            foo $ run a       -- uses foo :: M (t M a) -> M (t M a)
   -- @
-  --
-  -- @liftControl@ is typically used with @m == n == o@, but is required to
-  -- be polymorphic for greater type safety: for example, this type
-  -- ensures that the result of running the action in @m@ has no
-  -- remaining side effects in @m@.
-  liftControl ∷ (Monad m, Monad n, Monad o) ⇒ (Run t n o → m a) → t m a
+  liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
 
-type Run t n o = ∀ b. t n b → n (t o b)
+type Run t = ∀ n o b. (Monad n, Monad o) ⇒ t n b → n (t o b)
 
 -- | An often used composition: @control = 'join' . 'liftControl'@
-control ∷ (Monad n, Monad m, Monad o, Monad (t m), MonadTransControl t)
-        ⇒ (Run t n o → m (t m a)) → t m a
+control ∷ (Monad m, Monad (t m), MonadTransControl t)
+        ⇒ (Run t → m (t m a)) → t m a
 control = join ∘ liftControl
 
 
@@ -121,13 +118,12 @@ instance Error e ⇒
 instance MonadTransControl ListT      where liftControl = liftControlNoState ListT  runListT
 instance MonadTransControl MaybeT     where liftControl = liftControlNoState MaybeT runMaybeT
 
-liftControlNoState ∷ (Monad m, Monad n, Monad o, Monad f)
-                   ⇒ (∀ a p. p (f a) → t p a)
-                   → (∀ a. t m a → m (f a))
-                   → (Run t m o → n b) → t n b
-liftControlNoState mkT runT = \f → mkT $ liftM return $ f run
-    where
-      run = liftM (mkT ∘ return) ∘ runT
+liftControlNoState ∷ (Monad m, Monad f)
+                   ⇒ (∀ p b. p (f b) → t p b)
+                   → (∀ n b. t n b → n (f b))
+                   → (Run t → m a) → t m a
+liftControlNoState mkT runT = \f → mkT $ liftM return $ f $
+                                     liftM (mkT ∘ return) ∘ runT
 
 instance MonadTransControl (ReaderT r) where
     liftControl f =
@@ -186,7 +182,7 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 -- It serves as the base case for a class like @MonadControlIO@, which
 -- allows control operations in some base monad (here @IO@) to be
 -- lifted through arbitrary stacks of zero or more monad transformers
--- in one call.  For example, "Control.Monad.IO.Control" defines
+-- in one call.  For example, "Control.Monad.IO.Control" defines:
 --
 -- @
 -- class MonadIO m => MonadControlIO m where
@@ -209,7 +205,7 @@ type RunInBase m base = ∀ b. m b → base (m b)
 -- It satisfies @'liftLiftControlBase' 'idLiftControl' == 'liftControl'@.
 --
 -- It serves as the induction step of a @MonadControlIO@-like class.  For
--- example, "Control.Monad.IO.Control" defines
+-- example, "Control.Monad.IO.Control" defines:
 --
 -- @
 -- instance MonadControlIO m => MonadControlIO (StateT s m) where
@@ -217,7 +213,7 @@ type RunInBase m base = ∀ b. m b → base (m b)
 -- @
 --
 -- using the 'MonadTransControl' instance of @'StateT' s@.
-liftLiftControlBase ∷ (MonadTransControl t, Monad base, Monad m, Monad (t m))
+liftLiftControlBase ∷ (MonadTransControl t, Monad (t m), Monad m, Monad base)
                     ⇒ ((RunInBase m     base → base a) →   m a) -- ^ @liftControlBase@ operation
                     → ((RunInBase (t m) base → base a) → t m a)
 liftLiftControlBase lftCtrlBase = \f → liftControl $ \run →
