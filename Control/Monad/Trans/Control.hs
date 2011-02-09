@@ -198,27 +198,58 @@ idLiftControl f = f $ liftM return
 
 type RunInBase m base = ∀ b. m b → base (m b)
 
--- |@liftLiftControlBase@ is used to compose two 'liftControl' operations:
--- the outer provided by a 'MonadTransControl' instance,
--- and the inner provided as the argument.
---
--- It satisfies @'liftLiftControlBase' 'idLiftControl' == 'liftControl'@.
---
--- It serves as the induction step of a @MonadControlIO@-like class.  For
--- example, "Control.Monad.IO.Control" defines:
---
--- @
--- instance MonadControlIO m => MonadControlIO (StateT s m) where
---     liftControlIO = liftLiftControlBase liftControlIO
--- @
---
--- using the 'MonadTransControl' instance of @'StateT' s@.
+{-|
+@liftLiftControlBase@ is used to compose two 'liftControl' operations:
+the outer provided by a 'MonadTransControl' instance,
+and the inner provided as the argument.
+
+It satisfies @'liftLiftControlBase' 'idLiftControl' == 'liftControl'@.
+
+It serves as the induction step of a @MonadControlIO@-like class.  For
+example, "Control.Monad.IO.Control" defines:
+
+@
+instance MonadControlIO m => MonadControlIO (StateT s m) where
+    liftControlIO = liftLiftControlBase liftControlIO
+@
+
+using the 'MonadTransControl' instance of @'StateT' s@.
+
+The following shows the recursive structure of 'liftControlIO' applied to a
+stack of three monad transformers with IO as the base monad: @t1 (t2 (t3 IO)) a@:
+
+@
+liftControlIO
+ =
+ 'liftLiftControlBase' $
+   'liftLiftControlBase' $
+     'liftLiftControlBase' $
+       'idLiftControl'
+  =
+   \\f -> 'liftControl' $ \\run1 ->     -- Capture state of t1, run1 :: 'Run' t1
+           'liftControl' $ \\run2 ->   -- Capture state of t2, run2 :: 'Run' t2
+             'liftControl' $ \\run3 -> -- Capture state of t3, run3 :: 'Run' t3
+               let run :: 'RunInBase' (t1 (t2 (t3 IO))) IO
+                   run = -- Restore state
+                         'liftM' ('join' . 'lift') -- :: IO (           t2 (t3 IO) (t1 (t2 (t3 IO)) a))   -> IO (                       t1 (t2 (t3 IO)) a)
+                       . 'liftM' ('join' . 'lift') -- :: IO (    t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a)))  -> IO (           t2 (t3 IO) (t1 (t2 (t3 IO)) a))
+                         -- Identity conversion
+                       . 'liftM' ('join' . 'lift') -- :: IO (IO (t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a)))) -> IO (    t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a)))
+                       . 'liftM' 'return'        -- :: IO (    t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a)))  -> IO (IO (t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a))))
+                         -- Run     (computation to run:)                              (inner monad:) (restore computation:)
+                       . run3 -- ::         t3 IO  (t2 (t3 IO) (t1 (t2 (t3 IO)) a)) ->        IO      (t3 IO (t2 (t3 IO) (t1 (t2 (t3 IO)) a)))
+                       . run2 -- ::     t2 (t3 IO)             (t1 (t2 (t3 IO)) a)  ->     t3 IO             (t2 (t3 IO) (t1 (t2 (t3 IO)) a))
+                       . run1 -- :: t1 (t2 (t3 IO))                             a   -> t2 (t3 IO)                        (t1 (t2 (t3 IO)) a)
+               in f run
+@
+-}
 liftLiftControlBase ∷ (MonadTransControl t, Monad (t m), Monad m, Monad base)
                     ⇒ ((RunInBase m     base → base a) →   m a) -- ^ @liftControlBase@ operation
                     → ((RunInBase (t m) base → base a) → t m a)
-liftLiftControlBase lftCtrlBase = \f → liftControl $ \run →
+liftLiftControlBase lftCtrlBase = \f → liftControl $ \run1 →
                                          lftCtrlBase $ \runInBase →
-                                           f $ liftM (join ∘ lift) ∘ runInBase ∘ run
+                                           let run = liftM (join ∘ lift) ∘ runInBase ∘ run1
+                                           in f run
 
 
 -- The End ---------------------------------------------------------------------
