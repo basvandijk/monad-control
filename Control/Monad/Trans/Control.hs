@@ -65,35 +65,39 @@ import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT),
 -- MonadTransControl
 --------------------------------------------------------------------------------
 
--- |@MonadTransControl@ is the class of monad transformers supporting an
--- extra operation 'liftControl', enabling control operations (functions that
--- use monadic actions as input instead of just output) to be lifted
--- through the transformer.
+{-|
+@MonadTransControl@ is the class of monad transformers supporting an
+extra operation 'liftControl', enabling control operations (functions that
+use monadic actions as input instead of just output) to be lifted
+through the transformer.
+-}
 class MonadTrans t ⇒ MonadTransControl t where
-  -- |@liftControl@ is used to peel off the outer layer of a transformed
-  -- monadic action, allowing an transformed action @t m a@ to be
-  -- treated as a base action @m a@.
-  --
-  -- More precisely, @liftControl@ captures the monadic state of @t@ at the
-  -- point where it is bound (in @t m@), yielding a function of type:
-  --
-  -- @'Run' t = forall n o b. (Monad n, Monad o) => t n b -> n (t o b)@
-  --
-  -- This function runs a transformed monadic action @t n b@
-  -- in the inner monad @n@ using the captured state, and leaves the
-  -- result @t o b@ in the monad @n@ after all side effects in @n@
-  -- have occurred.
-  --
-  -- This can be used to lift control operations with types such as
-  -- @M a -> M a@ into the transformed monad @t M@:
-  --
-  -- @
-  -- instance Monad M
-  -- foo :: M a -> M a
-  -- foo' :: ('MonadTransControl' t, 'Monad' (t M)) => t M a -> t M a
-  -- foo' a = 'control' $ \run ->    -- run :: t M a -> M (t M a)
-  --            foo $ run a       -- uses foo :: M (t M a) -> M (t M a)
-  -- @
+  {-|
+  @liftControl@ is used to peel off the outer layer of a transformed
+  monadic action, allowing an transformed action @t m a@ to be
+  treated as a base action @m a@.
+
+  More precisely, @liftControl@ captures the monadic state of @t@ at the
+  point where it is bound (in @t m@), yielding a function of type:
+
+  @'Run' t = forall n o b. (Monad n, Monad o) => t n b -> n (t o b)@
+
+  This function runs a transformed monadic action @t n b@
+  in the inner monad @n@ using the captured state, and leaves the
+  result @t o b@ in the monad @n@ after all side effects in @n@
+  have occurred.
+
+  This can be used to lift control operations with types such as
+  @M a -> M a@ into the transformed monad @t M@:
+
+  @
+  instance Monad M
+  foo :: M a -> M a
+  foo' :: ('MonadTransControl' t, 'Monad' (t M)) => t M a -> t M a
+  foo' a = 'control' $ \run ->    -- run :: t M a -> M (t M a)
+             foo $ run a       -- uses foo :: M (t M a) -> M (t M a)
+  @
+  -}
   liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
 
 type Run t = ∀ n o b. (Monad n, Monad o, Monad (t o)) ⇒ t n b → n (t o b)
@@ -174,25 +178,27 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 -- Lifting
 --------------------------------------------------------------------------------
 
--- |@idLiftControl@ acts as the \"identity\" 'liftControl' operation from a monad
--- @m@ to itself.
---
--- @idLiftControl f = f $ liftM return@
---
--- It serves as the base case for a class like @MonadControlIO@, which
--- allows control operations in some base monad (here @IO@) to be
--- lifted through arbitrary stacks of zero or more monad transformers
--- in one call.  For example, "Control.Monad.IO.Control" defines:
---
--- @
--- class MonadIO m => MonadControlIO m where
---     liftControlIO :: (RunInBase m IO -> IO b) -> m b
--- @
---
--- @
--- instance MonadControlIO IO where
---     liftControlIO = idLiftControl
--- @
+{-|
+@idLiftControl@ acts as the \"identity\" 'liftControl' operation from a monad
+@m@ to itself.
+
+@idLiftControl f = f $ liftM return@
+
+It serves as the base case for a class like @MonadControlIO@, which
+allows control operations in some base monad (here @IO@) to be
+lifted through arbitrary stacks of zero or more monad transformers
+in one call.  For example, "Control.Monad.IO.Control" defines:
+
+@
+class MonadIO m => MonadControlIO m where
+    liftControlIO :: (RunInBase m IO -> IO b) -> m b
+@
+
+@
+instance MonadControlIO IO where
+    liftControlIO = idLiftControl
+@
+-}
 idLiftControl ∷ Monad m ⇒ (RunInBase m m → m a) → m a
 idLiftControl f = f $ liftM return
 

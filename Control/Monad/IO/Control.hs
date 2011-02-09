@@ -66,22 +66,26 @@ import Control.Monad.Trans.Control ( idLiftControl
 -- MonadControlIO
 --------------------------------------------------------------------------------
 
--- |@MonadControlIO@ is the class of 'IO'-based monads supporting an
--- extra operation 'liftControlIO', enabling control operations on 'IO' to be
--- lifted into the monad.
+{-|
+@MonadControlIO@ is the class of 'IO'-based monads supporting an
+extra operation 'liftControlIO', enabling control operations on 'IO' to be
+lifted into the monad.
+-}
 class MonadIO m ⇒ MonadControlIO m where
-  -- |@liftControlIO@ is a version of @liftControl@ that operates through an
-  -- arbitrary stack of monad transformers directly to an inner 'IO'
-  -- (analagously to how 'liftIO' is a version of @lift@).  So it can
-  -- be used to lift control operations on 'IO' into any
-  -- monad in 'MonadControlIO'.  For example:
-  --
-  -- @
-  -- foo :: 'IO' a -> 'IO' a
-  -- foo' :: 'MonadControlIO' m => m a -> m a
-  -- foo' a = 'controlIO' $ \runInIO ->    -- runInIO :: m a -> 'IO' (m a)
-  --            foo $ runInIO a         -- uses foo :: 'IO' (m a) -> 'IO' (m a)
-  -- @
+  {-|
+  @liftControlIO@ is a version of @liftControl@ that operates through an
+  arbitrary stack of monad transformers directly to an inner 'IO'
+  (analagously to how 'liftIO' is a version of @lift@).  So it can
+  be used to lift control operations on 'IO' into any
+  monad in 'MonadControlIO'.  For example:
+
+  @
+  foo :: 'IO' a -> 'IO' a
+  foo' :: 'MonadControlIO' m => m a -> m a
+  foo' a = 'controlIO' $ \runInIO ->    -- runInIO :: m a -> 'IO' (m a)
+             foo $ runInIO a         -- uses foo :: 'IO' (m a) -> 'IO' (m a)
+  @
+  -}
   liftControlIO ∷ (RunInBase m IO → IO a) → m a
 
 -- | An often used composition: @controlIO = 'join' . 'liftControlIO'@
@@ -134,23 +138,26 @@ instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.RWST r w s m) w
 -- Convenient lifting of two common special cases of control operation types
 --------------------------------------------------------------------------------
 
--- |@liftIOOp@ is a particular application of 'liftControlIO' that allows
--- lifting control operations of type @(a -> 'IO' b) -> 'IO' b@
--- (e.g. @alloca@, @withMVar v@) to
--- @'MonadControlIO' m => (a -> m b) -> m b@.
---
--- @liftIOOp f = \\g -> 'controlIO' $ \runInIO -> f $ runInIO . g@
+{-|
+@liftIOOp@ is a particular application of 'liftControlIO' that allows
+lifting control operations of type @(a -> 'IO' b) -> 'IO' b@
+(e.g. @alloca@, @withMVar v@) to
+@'MonadControlIO' m => (a -> m b) -> m b@.
 
+@liftIOOp f = \\g -> 'controlIO' $ \runInIO -> f $ runInIO . g@
+-}
 liftIOOp ∷ MonadControlIO m
          ⇒ ((a → IO (m b)) → IO (m c))
          → (a → m b) → m c
 liftIOOp f = \g → controlIO $ \runInIO → f $ runInIO ∘ g
 
--- |@liftIOOp_@ is a particular application of 'liftControlIO' that allows
--- lifting control operations of type @'IO' a -> 'IO' a@
--- (e.g. @block@) to @'MonadControlIO' m => m a -> m a@.
---
--- @liftIOOp_ f = \\m -> 'controlIO' $ \runInIO -> f $ runInIO m@
+{-|
+@liftIOOp_@ is a particular application of 'liftControlIO' that allows
+lifting control operations of type @'IO' a -> 'IO' a@
+(e.g. @block@) to @'MonadControlIO' m => m a -> m a@.
+
+@liftIOOp_ f = \\m -> 'controlIO' $ \runInIO -> f $ runInIO m@
+-}
 liftIOOp_ ∷ MonadControlIO m
           ⇒ (IO (m a) → IO (m b))
           → m a → m b
