@@ -96,7 +96,7 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- @
   liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
 
-type Run t = ∀ n o b. (Monad n, Monad o) ⇒ t n b → n (t o b)
+type Run t = ∀ n o b. (Monad n, Monad o, Monad (t o)) ⇒ t n b → n (t o b)
 
 -- | An often used composition: @control = 'join' . 'liftControl'@
 control ∷ (Monad m, Monad (t m), MonadTransControl t)
