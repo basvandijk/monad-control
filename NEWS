@@ -1,3 +1,24 @@
+0.2
+
+(Released on: Wed Feb 9 12:05:26 UTC 2011)
+
+* Use RunInBase in the type of idLiftControl.
+
+* Added this NEWS file.
+
+* Only parameterize Run with t and use RankNTypes to quantify n and o
+  -liftControl :: (Monad m, Monad n, Monad o) => (Run t n o -> m a) -> t m a
+  +liftControl :: Monad m => (Run t -> m a) -> t m a
+
+  -type Run t n o = forall b. t n b -> n (t o b)
+  +type Run t = forall n o b. (Monad n, Monad o, Monad (t o)) => t n b -> n (t o b)
+
+  Bumped version from 0.1 to 0.2 to indicate this breaking change in API.
+
+* Added example of a derivation of liftControlIO.
+  Really enlightening!
+
+
 0.1
 
 (Released on: Sat Feb 5 23:36:21 UTC 2011)
