@@ -97,6 +97,18 @@ class MonadTrans t ⇒ MonadTransControl t where
   foo' a = 'control' $ \run ->    -- run :: t M a -> M (t M a)
              foo $ run a       -- uses foo :: M (t M a) -> M (t M a)
   @
+
+  Instances should satisfy similar laws as the 'MonadTrans' laws:
+
+  @liftControl . const . return = return@
+
+  @liftControl (const (m >>= f)) = liftControl (const m) >>= liftControl . const . f@
+
+  Additionally instances should satisfy:
+
+  @'control' $ \\run -> run t = t@
+
+  @'control' $ \run -> run t >>= f = t >>= lift . f@
   -}
   liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
 
@@ -209,7 +221,7 @@ type RunInBase m base = ∀ b. m b → base (m b)
 the outer provided by a 'MonadTransControl' instance,
 and the inner provided as the argument.
 
-It satisfies @'liftLiftControlBase' 'idLiftControl' == 'liftControl'@.
+It satisfies @'liftLiftControlBase' 'idLiftControl' = 'liftControl'@.
 
 It serves as the induction step of a @MonadControlIO@-like class.  For
 example, "Control.Monad.IO.Control" defines:

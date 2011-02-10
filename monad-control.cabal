@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.2
+Version:             0.2.0.1
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 Description:
   This package defines the type class @MonadControlIO@, a subset of

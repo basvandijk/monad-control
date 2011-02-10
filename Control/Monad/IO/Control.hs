@@ -85,6 +85,18 @@ class MonadIO m ⇒ MonadControlIO m where
   foo' a = 'controlIO' $ \runInIO ->    -- runInIO :: m a -> 'IO' (m a)
              foo $ runInIO a         -- uses foo :: 'IO' (m a) -> 'IO' (m a)
   @
+
+  Instances should satisfy similar laws as the 'MonadIO' laws:
+
+  @liftControlIO . const . return = return@
+
+  @liftControlIO (const (m >>= f)) = liftControlIO (const m) >>= liftControlIO . const . f@
+
+  Additionally instances should satisfy:
+
+  @'controlIO' $ \\runInIO -> runInIO m = m@
+
+  @'controlIO' $ \runInIO -> runInIO m >>= f = m >>= liftIO . f@
   -}
   liftControlIO ∷ (RunInBase m IO → IO a) → m a
 
