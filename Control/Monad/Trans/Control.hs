@@ -107,8 +107,6 @@ class MonadTrans t ⇒ MonadTransControl t where
   Additionally instances should satisfy:
 
   @'control' $ \\run -> run t = t@
-
-  @'control' $ \run -> run t >>= f = t >>= lift . f@
   -}
   liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
 

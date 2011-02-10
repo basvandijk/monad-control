@@ -95,8 +95,6 @@ class MonadIO m ⇒ MonadControlIO m where
   Additionally instances should satisfy:
 
   @'controlIO' $ \\runInIO -> runInIO m = m@
-
-  @'controlIO' $ \runInIO -> runInIO m >>= f = m >>= liftIO . f@
   -}
   liftControlIO ∷ (RunInBase m IO → IO a) → m a
 
