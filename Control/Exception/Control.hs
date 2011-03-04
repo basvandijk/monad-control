@@ -105,7 +105,7 @@ import qualified Control.Exception as E
 -- from monad-control (this package):
 import Control.Monad.IO.Control ( MonadControlIO
                                 , controlIO
-                                , liftIOOp_
+                                , liftIOOp, liftIOOp_
                                 )
 
 
@@ -312,8 +312,7 @@ bracketIO ∷ MonadControlIO m
           → (a → IO b) -- ^ @IO@ computation to run last (\"release resource\")
           → (a → m c)  -- ^ computation to run in-between
           → m c
-bracketIO before after thing = controlIO $ \runInIO →
-                                 E.bracket before after (runInIO ∘ thing)
+bracketIO before after = liftIOOp $ E.bracket before after
 
 -- | A more efficient alternative to 'bracket_' where the acquire and release
 -- arguments are 'IO' computations.
@@ -322,8 +321,7 @@ bracketIO_ ∷ MonadControlIO m
            → IO b -- ^ @IO@ computation to run last (\"release resource\")
            → m c  -- ^ computation to run in-between
            → m c
-bracketIO_ before after thing = controlIO $ \runInIO →
-                                  E.bracket_ before after (runInIO thing)
+bracketIO_ before after = liftIOOp_ $ E.bracket_ before after
 
 -- | A more efficient alternative to 'bracketOnError' where the acquire and release
 -- arguments are 'IO' computations.
@@ -332,8 +330,7 @@ bracketIOOnError ∷ MonadControlIO m
                  → (a → IO b) -- ^ @IO@ computation to run last (\"release resource\")
                  → (a → m c)  -- ^ computation to run in-between
                  → m c
-bracketIOOnError before after thing = controlIO $ \runInIO →
-                                        E.bracketOnError before after (runInIO ∘ thing)
+bracketIOOnError before after = liftIOOp $ E.bracketOnError before after
 
 
 --------------------------------------------------------------------------------
