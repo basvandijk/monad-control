@@ -52,9 +52,6 @@ module Control.Exception.Control
       -- * Brackets
     , bracket, bracket_, bracketOnError
 
-      -- ** Brackets optimized for acquire and release computations in @IO@
-    , bracketIO, bracketIO_, bracketIOOnError
-
       -- * Utilities
     , finally, onException
     ) where
@@ -70,7 +67,9 @@ import Data.Either     ( Either(Left, Right) )
 import Data.Maybe      ( Maybe )
 import Data.Bool       ( Bool )
 import Control.Monad   ( Monad, (>>=), return, liftM )
+#ifdef __HADDOCK__
 import System.IO       ( IO )
+#endif
 import System.IO.Error ( IOError )
 
 #if __GLASGOW_HASKELL__ < 700
@@ -105,9 +104,11 @@ import qualified Control.Exception as E
 -- from monad-control (this package):
 import Control.Monad.IO.Control ( MonadControlIO
                                 , controlIO
-                                , liftIOOp, liftIOOp_
+                                , liftIOOp_
                                 )
-
+#ifdef __HADDOCK__
+import Control.Monad.IO.Control ( liftIOOp )
+#endif
 
 --------------------------------------------------------------------------------
 -- * Throwing exceptions
@@ -256,8 +257,10 @@ blocked = liftIO E.blocked
 -- effects in @m@ of the \"release\" computation will be discarded; it
 -- is run only for its side effects in @IO@.
 --
--- Note that when your acquire and release computations are in 'IO' its better
--- to use the more efficient 'bracketIO'.
+-- Note that when your @acquire@ and @release@ computations are of type 'IO'
+-- it will be more efficient to write:
+--
+-- @'liftIOOp' ('E.bracket' acquire release)@
 bracket ∷ MonadControlIO m
         ⇒ m a       -- ^ computation to run first (\"acquire resource\")
         → (a → m b) -- ^ computation to run last (\"release resource\")
@@ -274,8 +277,10 @@ bracket before after thing = controlIO $ \runInIO →
 -- of the \"acquire\" computation, use 'bracket' with constant
 -- functions instead.
 --
--- Note that when your acquire and release computations are in 'IO' its better
--- to use the more efficient 'bracketIO_'.
+-- Note that when your @acquire@ and @release@ computations are of type 'IO'
+-- it will be more efficient to write:
+--
+-- @'liftIOOp_' ('E.bracket_' acquire release)@
 bracket_ ∷ MonadControlIO m
          ⇒ m a -- ^ computation to run first (\"acquire resource\")
          → m b -- ^ computation to run last (\"release resource\")
@@ -289,8 +294,10 @@ bracket_ before after thing = controlIO $ \runInIO →
 -- |Generalized version of 'E.bracketOnError'.  Note, any monadic side
 -- effects in @m@ of the \"release\" computation will be discarded.
 --
--- Note that when your acquire and release computations are in 'IO' its better
--- to use the more efficient 'bracketIOOnError'.
+-- Note that when your @acquire@ and @release@ computations are of type 'IO'
+-- it will be more efficient to write:
+--
+-- @'liftIOOp' ('E.bracketOnError' acquire release)@
 bracketOnError ∷ MonadControlIO m
                ⇒ m a       -- ^ computation to run first (\"acquire resource\")
                → (a → m b) -- ^ computation to run last (\"release resource\")
@@ -300,37 +307,6 @@ bracketOnError before after thing = controlIO $ \runInIO →
                                       E.bracketOnError (runInIO before)
                                                        (\m → runInIO $ m >>= after)
                                                        (\m → runInIO $ m >>= thing)
-
---------------------------------------------------------------------------------
--- ** Brackets optimized for acquire and release computations in @IO@
---------------------------------------------------------------------------------
-
--- | A more efficient alternative to 'bracket' where the acquire and release
--- arguments are 'IO' computations.
-bracketIO ∷ MonadControlIO m
-          ⇒ IO a       -- ^ @IO@ computation to run first (\"acquire resource\")
-          → (a → IO b) -- ^ @IO@ computation to run last (\"release resource\")
-          → (a → m c)  -- ^ computation to run in-between
-          → m c
-bracketIO before after = liftIOOp $ E.bracket before after
-
--- | A more efficient alternative to 'bracket_' where the acquire and release
--- arguments are 'IO' computations.
-bracketIO_ ∷ MonadControlIO m
-           ⇒ IO a -- ^ @IO@ computation to run first (\"acquire resource\")
-           → IO b -- ^ @IO@ computation to run last (\"release resource\")
-           → m c  -- ^ computation to run in-between
-           → m c
-bracketIO_ before after = liftIOOp_ $ E.bracket_ before after
-
--- | A more efficient alternative to 'bracketOnError' where the acquire and release
--- arguments are 'IO' computations.
-bracketIOOnError ∷ MonadControlIO m
-                 ⇒ IO a       -- ^ @IO@ computation to run first (\"acquire resource\")
-                 → (a → IO b) -- ^ @IO@ computation to run last (\"release resource\")
-                 → (a → m c)  -- ^ computation to run in-between
-                 → m c
-bracketIOOnError before after = liftIOOp $ E.bracketOnError before after
 
 
 --------------------------------------------------------------------------------
