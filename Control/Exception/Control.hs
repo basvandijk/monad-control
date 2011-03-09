@@ -67,10 +67,11 @@ import Data.Either     ( Either(Left, Right) )
 import Data.Maybe      ( Maybe )
 import Data.Bool       ( Bool )
 import Control.Monad   ( Monad, (>>=), return, liftM )
-#ifdef __HADDOCK__
+import System.IO.Error ( IOError )
+
+#if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
 import System.IO       ( IO )
 #endif
-import System.IO.Error ( IOError )
 
 #if __GLASGOW_HASKELL__ < 700
 import Control.Monad   ( fail )
@@ -106,7 +107,7 @@ import Control.Monad.IO.Control ( MonadControlIO
                                 , controlIO
                                 , liftIOOp_
                                 )
-#ifdef __HADDOCK__
+#if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
 import Control.Monad.IO.Control ( liftIOOp )
 #endif
 
@@ -211,9 +212,12 @@ evaluate = liftIO ∘ E.evaluate
 #if MIN_VERSION_base(4,3,0)
 -- |Generalized version of 'E.mask'.
 mask ∷ MonadControlIO m ⇒ ((∀ a. m a → m a) → m b) → m b
-mask f = controlIO $ \runInIO →
-           E.mask $ \restore →
-             runInIO $ f $ liftIOOp_ restore
+mask = liftIOOp E.mask ∘ liftRestore
+
+liftRestore ∷ MonadControlIO m
+            ⇒ ((∀ a.  m a →  m a) → b)
+            → ((∀ a. IO a → IO a) → b)
+liftRestore f restore = f $ liftIOOp_ restore
 
 -- |Generalized version of 'E.mask_'.
 mask_ ∷ MonadControlIO m ⇒ m a → m a
@@ -221,9 +225,7 @@ mask_ = liftIOOp_ E.mask_
 
 -- |Generalized version of 'E.uninterruptibleMask'.
 uninterruptibleMask ∷ MonadControlIO m ⇒ ((∀ a. m a → m a) → m b) → m b
-uninterruptibleMask f = controlIO $ \runInIO →
-                          E.uninterruptibleMask $ \restore →
-                            runInIO $ f $ liftIOOp_ restore
+uninterruptibleMask = liftIOOp E.uninterruptibleMask ∘ liftRestore
 
 -- |Generalized version of 'E.uninterruptibleMask_'.
 uninterruptibleMask_ ∷ MonadControlIO m ⇒ m a → m a
