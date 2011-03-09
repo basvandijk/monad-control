@@ -96,10 +96,10 @@ class MonadIO m ⇒ MonadControlIO m where
 
   @'controlIO' $ \\runInIO -> runInIO m = m@
   -}
-  liftControlIO ∷ (RunInBase m IO → IO a) → m a
+  liftControlIO ∷ (RunInBase m IO → IO α) → m α
 
 -- | An often used composition: @controlIO = 'join' . 'liftControlIO'@
-controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m a)) → m a
+controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m α)) → m α
 controlIO = join ∘ liftControlIO
 
 
@@ -157,8 +157,8 @@ lifting control operations of type @(a -> 'IO' b) -> 'IO' b@
 @liftIOOp f = \\g -> 'controlIO' $ \runInIO -> f $ runInIO . g@
 -}
 liftIOOp ∷ MonadControlIO m
-         ⇒ ((a → IO (m b)) → IO (m c))
-         → (a → m b) → m c
+         ⇒ ((α → IO (m β)) → IO (m γ))
+         → ((α →     m β)  →     m γ)
 liftIOOp f = \g → controlIO $ \runInIO → f $ runInIO ∘ g
 
 {-|
@@ -169,8 +169,8 @@ lifting control operations of type @'IO' a -> 'IO' a@
 @liftIOOp_ f = \\m -> 'controlIO' $ \runInIO -> f $ runInIO m@
 -}
 liftIOOp_ ∷ MonadControlIO m
-          ⇒ (IO (m a) → IO (m b))
-          → m a → m b
+          ⇒ (IO (m α) → IO (m β))
+          → (    m α →      m β)
 liftIOOp_ f = \m → controlIO $ \runInIO → f $ runInIO m
 
 

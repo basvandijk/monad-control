@@ -108,13 +108,15 @@ class MonadTrans t ⇒ MonadTransControl t where
 
   @'control' $ \\run -> run t = t@
   -}
-  liftControl ∷ Monad m ⇒ (Run t → m a) → t m a
+  liftControl ∷ Monad m ⇒ (Run t → m α) → t m α
 
-type Run t = ∀ n o b. (Monad n, Monad o, Monad (t o)) ⇒ t n b → n (t o b)
+type Run t = ∀ n o β
+           . (Monad n, Monad o, Monad (t o))
+           ⇒ t n β → n (t o β)
 
 -- | An often used composition: @control = 'join' . 'liftControl'@
 control ∷ (Monad m, Monad (t m), MonadTransControl t)
-        ⇒ (Run t → m (t m a)) → t m a
+        ⇒ (Run t → m (t m α)) → t m α
 control = join ∘ liftControl
 
 
@@ -133,9 +135,9 @@ instance MonadTransControl ListT      where liftControl = liftControlNoState Lis
 instance MonadTransControl MaybeT     where liftControl = liftControlNoState MaybeT runMaybeT
 
 liftControlNoState ∷ (Monad m, Monad f)
-                   ⇒ (∀ p b. p (f b) → t p b)
-                   → (∀ n b. t n b → n (f b))
-                   → (Run t → m a) → t m a
+                   ⇒ (∀ p β. p (f β) → t p β)
+                   → (∀ n β. t n β → n (f β))
+                   → ((Run t → m α) → t m α)
 liftControlNoState mkT runT = \f → mkT $ liftM return $ f $
                                      liftM (mkT ∘ return) ∘ runT
 
@@ -209,10 +211,10 @@ instance MonadControlIO IO where
     liftControlIO = idLiftControl
 @
 -}
-idLiftControl ∷ Monad m ⇒ (RunInBase m m → m a) → m a
+idLiftControl ∷ Monad m ⇒ (RunInBase m m → m α) → m α
 idLiftControl f = f $ liftM return
 
-type RunInBase m base = ∀ b. m b → base (m b)
+type RunInBase m base = ∀ β. m β → base (m β)
 
 {-|
 @liftLiftControlBase@ is used to compose two 'liftControl' operations:
@@ -260,8 +262,8 @@ liftControlIO
 @
 -}
 liftLiftControlBase ∷ (MonadTransControl t, Monad (t m), Monad m, Monad base)
-                    ⇒ ((RunInBase m     base → base a) →   m a) -- ^ @liftControlBase@ operation
-                    → ((RunInBase (t m) base → base a) → t m a)
+                    ⇒ ((RunInBase m     base → base α) →   m α) -- ^ @liftControlBase@ operation
+                    → ((RunInBase (t m) base → base α) → t m α)
 liftLiftControlBase lftCtrlBase = \f → liftControl $ \run1 →
                                          lftCtrlBase $ \runInBase →
                                            let run = liftM (join ∘ lift) ∘ runInBase ∘ run1

@@ -63,7 +63,7 @@ module Control.Exception.Control
 
 -- from base:
 import Data.Function   ( ($) )
-import Data.Either     ( Either(Left, Right) )
+import Data.Either     ( Either(Left, Right), either )
 import Data.Maybe      ( Maybe )
 import Data.Bool       ( Bool )
 import Control.Monad   ( Monad, (>>=), return, liftM )
@@ -116,11 +116,11 @@ import Control.Monad.IO.Control ( liftIOOp )
 --------------------------------------------------------------------------------
 
 -- |Generalized version of 'E.throwIO'.
-throwIO ∷ (MonadIO m, Exception e) ⇒ e → m a
+throwIO ∷ (MonadIO m, Exception e) ⇒ e → m α
 throwIO = liftIO ∘ E.throwIO
 
 -- |Generalized version of 'E.ioError'.
-ioError ∷ MonadIO m ⇒ IOError → m a
+ioError ∷ MonadIO m ⇒ IOError → m α
 ioError = liftIO ∘ E.ioError
 
 
@@ -130,15 +130,15 @@ ioError = liftIO ∘ E.ioError
 
 -- |Generalized version of 'E.catch'.
 catch ∷ (MonadControlIO m, Exception e)
-      ⇒ m a       -- ^ The computation to run
-      → (e → m a) -- ^ Handler to invoke if an exception is raised
-      → m a
+      ⇒ m α       -- ^ The computation to run
+      → (e → m α) -- ^ Handler to invoke if an exception is raised
+      → m α
 catch a handler = controlIO $ \runInIO →
                     E.catch (runInIO a)
                             (\e → runInIO $ handler e)
 
 -- |Generalized version of 'E.catches'.
-catches ∷ MonadControlIO m ⇒ m a → [Handler m a] → m a
+catches ∷ MonadControlIO m ⇒ m α → [Handler m α] → m α
 catches a handlers = controlIO $ \runInIO →
                        E.catches (runInIO a)
                                  [ E.Handler $ \e → runInIO $ handler e
@@ -146,14 +146,14 @@ catches a handlers = controlIO $ \runInIO →
                                  ]
 
 -- |Generalized version of 'E.Handler'.
-data Handler m a = ∀ e. Exception e ⇒ Handler (e → m a)
+data Handler m α = ∀ e. Exception e ⇒ Handler (e → m α)
 
 -- |Generalized version of 'E.catchJust'.
 catchJust ∷ (MonadControlIO m, Exception e)
-          ⇒ (e → Maybe b) -- ^ Predicate to select exceptions
-          → m a           -- ^ Computation to run
-          → (b → m a)     -- ^ Handler
-          → m a
+          ⇒ (e → Maybe β) -- ^ Predicate to select exceptions
+          → m α           -- ^ Computation to run
+          → (β → m α)     -- ^ Handler
+          → m α
 catchJust p a handler = controlIO $ \runInIO →
                           E.catchJust p
                                       (runInIO a)
@@ -165,14 +165,14 @@ catchJust p a handler = controlIO $ \runInIO →
 --------------------------------------------------------------------------------
 
 -- |Generalized version of 'E.handle'.
-handle ∷ (MonadControlIO m, Exception e) ⇒ (e → m a) → m a → m a
+handle ∷ (MonadControlIO m, Exception e) ⇒ (e → m α) → m α → m α
 handle handler a = controlIO  $ \runInIO →
                      E.handle (\e → runInIO (handler e))
                               (runInIO a)
 
 -- |Generalized version of 'E.handleJust'.
 handleJust ∷ (MonadControlIO m, Exception e)
-           ⇒ (e → Maybe b) → (b → m a) → m a → m a
+           ⇒ (e → Maybe β) → (β → m α) → m α → m α
 handleJust p handler a = controlIO $ \runInIO →
                            E.handleJust p (\e → runInIO (handler e))
                                           (runInIO a)
@@ -182,17 +182,16 @@ handleJust p handler a = controlIO $ \runInIO →
 -- ** The @try@ functions
 --------------------------------------------------------------------------------
 
-sequenceEither ∷ Monad m ⇒ Either e (m a) → m (Either e a)
-sequenceEither (Left e)  = return $ Left e
-sequenceEither (Right m) = liftM Right m
+sequenceEither ∷ Monad m ⇒ Either e (m α) → m (Either e α)
+sequenceEither = either (return ∘ Left) (liftM Right)
 
 -- |Generalized version of 'E.try'.
-try ∷ (MonadControlIO m, Exception e) ⇒ m a → m (Either e a)
+try ∷ (MonadControlIO m, Exception e) ⇒ m α → m (Either e α)
 try = liftIOOp_ (liftM sequenceEither ∘ E.try)
 
 -- |Generalized version of 'E.tryJust'.
 tryJust ∷ (MonadControlIO m, Exception e) ⇒
-           (e → Maybe b) → m a → m (Either b a)
+           (e → Maybe β) → m α → m (Either β α)
 tryJust p = liftIOOp_ (liftM sequenceEither ∘ E.tryJust p)
 
 
@@ -201,7 +200,7 @@ tryJust p = liftIOOp_ (liftM sequenceEither ∘ E.tryJust p)
 --------------------------------------------------------------------------------
 
 -- |Generalized version of 'E.evaluate'.
-evaluate ∷ MonadIO m ⇒ a → m a
+evaluate ∷ MonadIO m ⇒ α → m α
 evaluate = liftIO ∘ E.evaluate
 
 
@@ -211,24 +210,24 @@ evaluate = liftIO ∘ E.evaluate
 
 #if MIN_VERSION_base(4,3,0)
 -- |Generalized version of 'E.mask'.
-mask ∷ MonadControlIO m ⇒ ((∀ a. m a → m a) → m b) → m b
+mask ∷ MonadControlIO m ⇒ ((∀ α. m α → m α) → m β) → m β
 mask = liftIOOp E.mask ∘ liftRestore
 
 liftRestore ∷ MonadControlIO m
-            ⇒ ((∀ a.  m a →  m a) → b)
-            → ((∀ a. IO a → IO a) → b)
+            ⇒ ((∀ α.  m α →  m α) → β)
+            → ((∀ α. IO α → IO α) → β)
 liftRestore f restore = f $ liftIOOp_ restore
 
 -- |Generalized version of 'E.mask_'.
-mask_ ∷ MonadControlIO m ⇒ m a → m a
+mask_ ∷ MonadControlIO m ⇒ m α → m α
 mask_ = liftIOOp_ E.mask_
 
 -- |Generalized version of 'E.uninterruptibleMask'.
-uninterruptibleMask ∷ MonadControlIO m ⇒ ((∀ a. m a → m a) → m b) → m b
+uninterruptibleMask ∷ MonadControlIO m ⇒ ((∀ α. m α → m α) → m β) → m β
 uninterruptibleMask = liftIOOp E.uninterruptibleMask ∘ liftRestore
 
 -- |Generalized version of 'E.uninterruptibleMask_'.
-uninterruptibleMask_ ∷ MonadControlIO m ⇒ m a → m a
+uninterruptibleMask_ ∷ MonadControlIO m ⇒ m α → m α
 uninterruptibleMask_ = liftIOOp_ E.uninterruptibleMask_
 
 -- |Generalized version of 'E.getMaskingState'.
@@ -236,11 +235,11 @@ getMaskingState ∷ MonadIO m ⇒ m MaskingState
 getMaskingState = liftIO E.getMaskingState
 #else
 -- |Generalized version of 'E.block'.
-block ∷ MonadControlIO m ⇒ m a → m a
+block ∷ MonadControlIO m ⇒ m α → m α
 block = liftIOOp_ E.block
 
 -- |Generalized version of 'E.unblock'.
-unblock ∷ MonadControlIO m ⇒ m a → m a
+unblock ∷ MonadControlIO m ⇒ m α → m α
 unblock = liftIOOp_ E.unblock
 #endif
 
@@ -264,10 +263,10 @@ blocked = liftIO E.blocked
 --
 -- @'liftIOOp' ('E.bracket' acquire release)@
 bracket ∷ MonadControlIO m
-        ⇒ m a       -- ^ computation to run first (\"acquire resource\")
-        → (a → m b) -- ^ computation to run last (\"release resource\")
-        → (a → m c) -- ^ computation to run in-between
-        → m c
+        ⇒ m α       -- ^ computation to run first (\"acquire resource\")
+        → (α → m β) -- ^ computation to run last (\"release resource\")
+        → (α → m γ) -- ^ computation to run in-between
+        → m γ
 bracket before after thing = controlIO $ \runInIO →
                                E.bracket (runInIO before)
                                          (\m → runInIO $ m >>= after)
@@ -284,10 +283,10 @@ bracket before after thing = controlIO $ \runInIO →
 --
 -- @'liftIOOp_' ('E.bracket_' acquire release)@
 bracket_ ∷ MonadControlIO m
-         ⇒ m a -- ^ computation to run first (\"acquire resource\")
-         → m b -- ^ computation to run last (\"release resource\")
-         → m c -- ^ computation to run in-between
-         → m c
+         ⇒ m α -- ^ computation to run first (\"acquire resource\")
+         → m β -- ^ computation to run last (\"release resource\")
+         → m γ -- ^ computation to run in-between
+         → m γ
 bracket_ before after thing = controlIO $ \runInIO →
                                 E.bracket_ (runInIO before)
                                            (runInIO after)
@@ -301,10 +300,10 @@ bracket_ before after thing = controlIO $ \runInIO →
 --
 -- @'liftIOOp' ('E.bracketOnError' acquire release)@
 bracketOnError ∷ MonadControlIO m
-               ⇒ m a       -- ^ computation to run first (\"acquire resource\")
-               → (a → m b) -- ^ computation to run last (\"release resource\")
-               → (a → m c) -- ^ computation to run in-between
-               → m c
+               ⇒ m α       -- ^ computation to run first (\"acquire resource\")
+               → (α → m β) -- ^ computation to run last (\"release resource\")
+               → (α → m γ) -- ^ computation to run in-between
+               → m γ
 bracketOnError before after thing = controlIO $ \runInIO →
                                       E.bracketOnError (runInIO before)
                                                        (\m → runInIO $ m >>= after)
@@ -318,16 +317,16 @@ bracketOnError before after thing = controlIO $ \runInIO →
 -- |Generalized version of 'E.finally'.  Note, any monadic side
 -- effects in @m@ of the \"afterward\" computation will be discarded.
 finally ∷ MonadControlIO m
-        ⇒ m a -- ^ computation to run first
-        → m b -- ^ computation to run afterward (even if an exception was raised)
-        → m a
+        ⇒ m α -- ^ computation to run first
+        → m β -- ^ computation to run afterward (even if an exception was raised)
+        → m α
 finally a sequel = controlIO $ \runInIO →
                      E.finally (runInIO a)
                                (runInIO sequel)
 
 -- |Generalized version of 'E.onException'.  Note, any monadic side
 -- effects in @m@ of the \"afterward\" computation will be discarded.
-onException ∷ MonadControlIO m ⇒ m a → m b → m a
+onException ∷ MonadControlIO m ⇒ m α → m β → m α
 onException m what = controlIO $ \runInIO →
                        E.onException (runInIO m)
                                      (runInIO what)
