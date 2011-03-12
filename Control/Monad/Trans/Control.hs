@@ -150,7 +150,7 @@ instance MonadTransControl (ReaderT r) where
 instance MonadTransControl (StateT s) where
     liftControl f =
         StateT $ \s →
-          let run t = liftM (\(x, s') → StateT $ \_ → return (x, s'))
+          let run t = liftM (\ ~(x, s') → StateT $ \_ → return (x, s'))
                             (runStateT t s)
           in liftM (\x → (x, s)) (f run)
 
@@ -164,17 +164,19 @@ instance MonadTransControl (Strict.StateT s) where
 instance Monoid w ⇒ MonadTransControl (WriterT w) where
     liftControl f = WriterT $ liftM (\x → (x, mempty)) (f run)
         where
-          run t = liftM (WriterT ∘ return) (runWriterT t)
+          run t = liftM (\ ~(x, w) → WriterT $ return (x, w))
+                        (runWriterT t)
 
 instance Monoid w ⇒ MonadTransControl (Strict.WriterT w) where
     liftControl f = Strict.WriterT $ liftM (\x → (x, mempty)) (f run)
         where
-          run t = liftM (Strict.WriterT ∘ return) (Strict.runWriterT t)
+          run t = liftM (\(x, w) → Strict.WriterT $ return (x, w))
+                        (Strict.runWriterT t)
 
 instance Monoid w ⇒ MonadTransControl (RWST r w s) where
     liftControl f =
         RWST $ \r s →
-          let run t = liftM (\(x, s', w) → RWST $ \_ _ → return (x, s', w))
+          let run t = liftM (\ ~(x, s', w) → RWST $ \_ _ → return (x, s', w))
                             (runRWST t r s)
           in liftM (\x → (x, s, mempty)) (f run)
 
