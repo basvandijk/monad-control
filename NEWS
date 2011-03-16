@@ -1,3 +1,19 @@
+0.2.0.1
+
+(Released on: Wed Mar 16 15:53:50 UTC 2011)
+
+* Added laws for MonadTransControl and MonadControlIO
+
+* Bug fix: Add proper laziness to the MonadTransControl instances
+  of the lazy StateT, WriteT and RWST
+  These all failed the law: control $ \run -> run t = t
+  where t = return undefined
+
+* Add INLINABLE pragmas for most public functions
+  A simple benchmark showed some functions
+  (bracket and mask) improving by 30%.
+
+
 0.2
 
 (Released on: Wed Feb 9 12:05:26 UTC 2011)
