@@ -34,6 +34,8 @@ Category:            Control
 Build-type:          Custom
 Cabal-version:       >= 1.9.2
 
+extra-source-files:  README.markdown, NEWS
+
 --------------------------------------------------------------------------------
 
 source-repository head
