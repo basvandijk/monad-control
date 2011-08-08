@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.2.0.1
+Version:             0.2.0.2
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 Description:
   This package defines the type class @MonadControlIO@, a subset of
@@ -28,6 +28,8 @@ License-file:        LICENSE
 Author:              Bas van Dijk, Anders Kaseorg
 Maintainer:          Bas van Dijk <v.dijk.bas@gmail.com>
 Copyright:           (c) 2011 Bas van Dijk, Anders Kaseorg
+Homepage:            https://github.com/basvandijk/monad-control/
+Bug-reports:         https://github.com/basvandijk/monad-control/issues
 Category:            Control
 Build-type:          Custom
 Cabal-version:       >= 1.6
@@ -35,8 +37,8 @@ Cabal-version:       >= 1.6
 --------------------------------------------------------------------------------
 
 source-repository head
-  type:     darcs
-  location: http://code.haskell.org/~basvandijk/code/monad-control
+  type:     git
+  location: git://github.com/basvandijk/monad-control.git
 
 --------------------------------------------------------------------------------
 
