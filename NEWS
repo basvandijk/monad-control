@@ -1,3 +1,14 @@
+0.2.0.2
+
+(Released on: Mon Aug 8 09:16:08 UTC 2011)
+
+* Switched to git on github.
+
+* Tested with base-4.4 and ghc-7.2.1.
+
+* Use the new cabal test-suite feature.
+
+
 0.2.0.1
 
 (Released on: Wed Mar 16 15:53:50 UTC 2011)
