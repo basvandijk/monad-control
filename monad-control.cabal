@@ -21,7 +21,7 @@ Description:
   The following @critertion@ based benchmark shows that @monad-control@
   is on average about 2.5 times faster than @monad-peel@:
   .
-  <http://code.haskell.org/~basvandijk/code/bench-monad-peel-control>
+  <https://github.com/basvandijk/bench-monad-peel-control>
 
 License:             BSD3
 License-file:        LICENSE
