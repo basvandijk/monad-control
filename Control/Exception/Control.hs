@@ -47,8 +47,10 @@ module Control.Exception.Control
 #else
     , block, unblock
 #endif
-    , blocked
 
+#if !MIN_VERSION_base(4,4,0)
+    , blocked
+#endif
       -- * Brackets
     , bracket, bracket_, bracketOnError
 
@@ -65,7 +67,6 @@ module Control.Exception.Control
 import Data.Function   ( ($) )
 import Data.Either     ( Either(Left, Right), either )
 import Data.Maybe      ( Maybe )
-import Data.Bool       ( Bool )
 import Control.Monad   ( Monad, (>>=), return, liftM )
 import System.IO.Error ( IOError )
 
@@ -96,11 +97,17 @@ import Control.Exception hiding
 #else
     , block, unblock
 #endif
+#if !MIN_VERSION_base(4,4,0)
     , blocked
+#endif
     , bracket, bracket_, bracketOnError
     , finally, onException
     )
 import qualified Control.Exception as E
+
+#if !MIN_VERSION_base(4,4,0)
+import Data.Bool ( Bool )
+#endif
 
 -- from monad-control (this package):
 import Control.Monad.IO.Control ( MonadControlIO
@@ -256,11 +263,13 @@ unblock ∷ MonadControlIO m ⇒ m α → m α
 unblock = liftIOOp_ E.unblock
 #endif
 
+#if !MIN_VERSION_base(4,4,0)
 -- | Generalized version of 'E.blocked'.
 -- returns @True@ if asynchronous exceptions are blocked in the
 -- current thread.
 blocked ∷ MonadIO m ⇒ m Bool
 blocked = liftIO E.blocked
+#endif
 
 
 --------------------------------------------------------------------------------
