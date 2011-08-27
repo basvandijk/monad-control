@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.2.0.2
+Version:             0.2.0.3
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 Description:
   This package defines the type class @MonadControlIO@, a subset of
@@ -35,6 +35,9 @@ Build-type:          Custom
 Cabal-version:       >= 1.9.2
 
 extra-source-files:  README.markdown, NEWS
+
+-- TODO: Remove when http://hackage.haskell.org/trac/hackage/ticket/792 is fixed:
+extra-source-files:  test.hs
 
 --------------------------------------------------------------------------------
 
