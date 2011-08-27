@@ -1,3 +1,11 @@
+0.2.0.3
+
+(Released on: Sat Aug 27 21:18:22 UTC 2011)
+
+* Fixed issue #2
+  https://github.com/basvandijk/monad-control/issues/2
+
+
 0.2.0.2
 
 (Released on: Mon Aug 8 09:16:08 UTC 2011)
