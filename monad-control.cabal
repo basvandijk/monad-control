@@ -59,7 +59,7 @@ Library
 
 --------------------------------------------------------------------------------
 
-test-suite test-threads
+test-suite test-monad-control
   type:    exitcode-stdio-1.0
   main-is: test.hs
 
