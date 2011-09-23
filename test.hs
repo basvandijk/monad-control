@@ -20,7 +20,7 @@ import qualified Control.Monad.Trans.RWS as RWS
 
 -- from monad-control (this package):
 import Control.Exception.Control
-import Control.Monad.IO.Control (MonadControlIO)
+import Control.Monad.Trans.Control (MonadControlIO)
 
 -- from test-framework:
 import Test.Framework (defaultMain, testGroup, Test)

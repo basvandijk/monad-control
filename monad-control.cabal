@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.2.0.3
+Version:             0.3
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 Description:
   This package defines the type class @MonadControlIO@, a subset of
@@ -21,7 +21,7 @@ Description:
   The following @critertion@ based benchmark shows that @monad-control@
   is on average about 2.5 times faster than @monad-peel@:
   .
-  <https://github.com/basvandijk/bench-monad-peel-control>
+  @git clone <https://github.com/basvandijk/bench-monad-peel-control>@
 
 License:             BSD3
 License-file:        LICENSE
@@ -49,7 +49,6 @@ source-repository head
 
 Library
   Exposed-modules: Control.Monad.Trans.Control
-                   Control.Monad.IO.Control
                    Control.Exception.Control
 
   Build-depends: base                 >= 3     && < 4.5
