@@ -31,6 +31,8 @@ module Control.Monad.Trans.Control
       -- * MonadControlIO type class
     , MonadControlIO(..), RunInBase
 
+    , controlIO
+
     , liftIOOp, liftIOOp_
 
       -- * Lifting utilities
@@ -181,6 +183,11 @@ class MonadIO m ⇒ MonadControlIO m where
 
 type RunInBase m base = ∀ β. m β → base (m β)
 
+-- | An often used composition: @controlIO = 'join' . 'liftControlIO'@
+{-# INLINABLE controlIO #-}
+controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m α)) → m α
+controlIO = join ∘ liftControlIO
+
 
 --------------------------------------------------------------------------------
 -- MonadControlIO instances
@@ -238,7 +245,7 @@ lifting control operations of type:
 liftIOOp ∷ MonadControlIO m
          ⇒ ((α → IO (m β)) → IO (m γ))
          → ((α →     m β)  →     m γ)
-liftIOOp f = \g → join $ liftControlIO $ \runInIO → f $ runInIO ∘ g
+liftIOOp f = \g → controlIO $ \runInIO → f $ runInIO ∘ g
 
 {-|
 @liftIOOp_@ is a particular application of 'liftControlIO' that allows
@@ -251,7 +258,7 @@ lifting control operations of type:
 liftIOOp_ ∷ MonadControlIO m
           ⇒ (IO (m α) → IO (m β))
           → (    m α →      m β)
-liftIOOp_ f = \m → join $ liftControlIO $ \runInIO → f $ runInIO m
+liftIOOp_ f = \m → controlIO $ \runInIO → f $ runInIO m
 
 
 --------------------------------------------------------------------------------

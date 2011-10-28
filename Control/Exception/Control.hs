@@ -67,7 +67,7 @@ module Control.Exception.Control
 import Data.Function   ( ($) )
 import Data.Either     ( Either(Left, Right), either )
 import Data.Maybe      ( Maybe )
-import Control.Monad   ( Monad, (>>=), return, liftM, join )
+import Control.Monad   ( Monad, (>>=), return, liftM )
 import System.IO.Error ( IOError )
 
 #if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
@@ -110,7 +110,7 @@ import Data.Bool ( Bool )
 #endif
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadControlIO, liftControlIO, liftIOOp_ )
+import Control.Monad.Trans.Control ( MonadControlIO, controlIO, liftIOOp_ )
 #if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
 import Control.Monad.Trans.Control ( liftIOOp )
 #endif
@@ -138,14 +138,14 @@ catch ∷ (MonadControlIO m, Exception e)
       ⇒ m α       -- ^ The computation to run
       → (e → m α) -- ^ Handler to invoke if an exception is raised
       → m α
-catch a handler = join $ liftControlIO $ \runInIO →
+catch a handler = controlIO $ \runInIO →
                     E.catch (runInIO a)
                             (\e → runInIO $ handler e)
 
 -- |Generalized version of 'E.catches'.
 {-# INLINABLE catches #-}
 catches ∷ MonadControlIO m ⇒ m α → [Handler m α] → m α
-catches a handlers = join $ liftControlIO $ \runInIO →
+catches a handlers = controlIO $ \runInIO →
                        E.catches (runInIO a)
                                  [ E.Handler $ \e → runInIO $ handler e
                                  | Handler handler ← handlers
@@ -161,7 +161,7 @@ catchJust ∷ (MonadControlIO m, Exception e)
           → m α           -- ^ Computation to run
           → (β → m α)     -- ^ Handler
           → m α
-catchJust p a handler = join $ liftControlIO $ \runInIO →
+catchJust p a handler = controlIO $ \runInIO →
                           E.catchJust p
                                       (runInIO a)
                                       (\e → runInIO (handler e))
@@ -174,7 +174,7 @@ catchJust p a handler = join $ liftControlIO $ \runInIO →
 -- |Generalized version of 'E.handle'.
 {-# INLINABLE handle #-}
 handle ∷ (MonadControlIO m, Exception e) ⇒ (e → m α) → m α → m α
-handle handler a = join $ liftControlIO $ \runInIO →
+handle handler a = controlIO $ \runInIO →
                      E.handle (\e → runInIO (handler e))
                               (runInIO a)
 
@@ -182,7 +182,7 @@ handle handler a = join $ liftControlIO $ \runInIO →
 {-# INLINABLE handleJust #-}
 handleJust ∷ (MonadControlIO m, Exception e)
            ⇒ (e → Maybe β) → (β → m α) → m α → m α
-handleJust p handler a = join $ liftControlIO $ \runInIO →
+handleJust p handler a = controlIO $ \runInIO →
                            E.handleJust p (\e → runInIO (handler e))
                                           (runInIO a)
 
@@ -287,7 +287,7 @@ bracket ∷ MonadControlIO m
         → (α → m β) -- ^ computation to run last (\"release resource\")
         → (α → m γ) -- ^ computation to run in-between
         → m γ
-bracket before after thing = join $ liftControlIO $ \runInIO →
+bracket before after thing = controlIO $ \runInIO →
                                E.bracket (runInIO before)
                                          (\m → runInIO $ m >>= after)
                                          (\m → runInIO $ m >>= thing)
@@ -308,7 +308,7 @@ bracket_ ∷ MonadControlIO m
          → m β -- ^ computation to run last (\"release resource\")
          → m γ -- ^ computation to run in-between
          → m γ
-bracket_ before after thing = join $ liftControlIO $ \runInIO →
+bracket_ before after thing = controlIO $ \runInIO →
                                 E.bracket_ (runInIO before)
                                            (runInIO after)
                                            (runInIO thing)
@@ -326,7 +326,7 @@ bracketOnError ∷ MonadControlIO m
                → (α → m β) -- ^ computation to run last (\"release resource\")
                → (α → m γ) -- ^ computation to run in-between
                → m γ
-bracketOnError before after thing = join $ liftControlIO $ \runInIO →
+bracketOnError before after thing = controlIO $ \runInIO →
                                       E.bracketOnError (runInIO before)
                                                        (\m → runInIO $ m >>= after)
                                                        (\m → runInIO $ m >>= thing)
@@ -343,7 +343,7 @@ finally ∷ MonadControlIO m
         ⇒ m α -- ^ computation to run first
         → m β -- ^ computation to run afterward (even if an exception was raised)
         → m α
-finally a sequel = join $ liftControlIO $ \runInIO →
+finally a sequel = controlIO $ \runInIO →
                      E.finally (runInIO a)
                                (runInIO sequel)
 
@@ -351,6 +351,6 @@ finally a sequel = join $ liftControlIO $ \runInIO →
 -- effects in @m@ of the \"afterward\" computation will be discarded.
 {-# INLINABLE onException #-}
 onException ∷ MonadControlIO m ⇒ m α → m β → m α
-onException m what = join $ liftControlIO  $ \runInIO →
+onException m what = controlIO  $ \runInIO →
                        E.onException (runInIO m)
                                      (runInIO what)
