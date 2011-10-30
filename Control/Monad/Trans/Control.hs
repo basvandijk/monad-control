@@ -1,9 +1,6 @@
 {-# LANGUAGE UnicodeSyntax
            , NoImplicitPrelude
            , RankNTypes
-           , FlexibleInstances
-           , FlexibleContexts
-           , UndecidableInstances
            , TypeFamilies
   #-}
 
