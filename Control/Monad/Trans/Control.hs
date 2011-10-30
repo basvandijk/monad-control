@@ -4,6 +4,9 @@
            , FlexibleInstances
            , FlexibleContexts
            , UndecidableInstances
+           , TypeFamilies
+
+           , ScopedTypeVariables
   #-}
 
 {- |
@@ -13,35 +16,16 @@ License     :  BSD-style
 
 Maintainer  :  Bas van Dijk <v.dijk.bas@gmail.com>
 Stability   :  experimental
-Portability :  Requires RankNTypes
-
-This module defines the class 'MonadTransControl' of monad transformers through
-which control operations can be lifted.  Instances are included for all the
-standard monad transformers from the @transformers@ library except @ContT@.
-
-Additionally this module defines the class 'MonadControlIO' of 'IO'-based monads
-into which control operations on 'IO' (such as exception catching or memory
-allocation) can be lifted.
-
-'liftIOOp' and 'liftIOOp_' enable convenient lifting of two common special cases
-of control operation types.
-
-'idLiftControl' and 'liftLiftControlBase' are provided to assist creation of
-'MonadControlIO'-like classes based on core monads other than 'IO'.
 -}
 
 module Control.Monad.Trans.Control
     ( MonadTransControl(..), Run
 
-    , MonadControlIO(..), RunInBase
+    , MonadControlIO(..), RunInIO, AllSt, liftControlIODefault
 
     , controlIO
 
     , liftIOOp, liftIOOp_
-
-      -- * Lifting utilities
-    , idLiftControl
-    , liftLiftControlBase
     ) where
 
 
@@ -50,16 +34,18 @@ module Control.Monad.Trans.Control
 --------------------------------------------------------------------------------
 
 -- from base:
+import Data.Maybe    ( Maybe )
+import Data.Either   ( Either )
 import Data.Function ( ($) )
 import Data.Monoid   ( Monoid, mempty )
-import Control.Monad ( Monad, join, return, liftM )
+import Control.Monad ( Monad, (>>=), return, liftM )
 import System.IO     ( IO )
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
 
 -- from transformers:
-import Control.Monad.Trans.Class    ( MonadTrans, lift )
+import Control.Monad.Trans.Class    ( MonadTrans )
 import Control.Monad.IO.Class       ( MonadIO )
 
 import Control.Monad.Trans.Identity ( IdentityT(IdentityT), runIdentityT )
@@ -89,14 +75,16 @@ Instances should satisfy similar laws as the 'MonadTrans' laws:
 
 Additionally instances should satisfy:
 
-@join $ liftControl $ \\run -> run t = t@
+@liftControl (\\run -> run t) >>= restore = t@
 -}
 class MonadTrans t ⇒ MonadTransControl t where
+  data St t ∷ * → *
+
   liftControl ∷ Monad m ⇒ (Run t → m α) → t m α
 
-type Run t = ∀ n o β
-           . (Monad n, Monad o, Monad (t o))
-           ⇒ t n β → n (t o β)
+  restore ∷ Monad m ⇒ St t α → t m α
+
+type Run t = ∀ n β. Monad n ⇒ t n β → n (St t β)
 
 
 --------------------------------------------------------------------------------
@@ -104,66 +92,91 @@ type Run t = ∀ n o β
 --------------------------------------------------------------------------------
 
 instance MonadTransControl IdentityT where
-    liftControl f = IdentityT $ f run
-        where
-          run t = liftM return (runIdentityT t)
+    newtype St IdentityT α = StId α
+    liftControl f = IdentityT $ f $ liftM StId ∘ runIdentityT
+    restore (StId x) = return x
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
-instance Error e ⇒
-         MonadTransControl (ErrorT e) where liftControl = lftCtrl ErrorT runErrorT
-instance MonadTransControl ListT      where liftControl = lftCtrl ListT  runListT
-instance MonadTransControl MaybeT     where liftControl = lftCtrl MaybeT runMaybeT
+instance MonadTransControl MaybeT where
+    newtype St MaybeT α = StMaybe (Maybe α)
+    liftControl f = MaybeT $ liftM return $ f $ liftM StMaybe ∘ runMaybeT
+    restore (StMaybe mb) = MaybeT $ return mb
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
-lftCtrl ∷ (Monad m, Monad f)
-        ⇒ (∀ p β. p (f β) → t p β)
-        → (∀ n β. t n β → n (f β))
-        → ((Run t → m α) → t m α)
-lftCtrl mkT runT = \f → mkT $ liftM return $ f $ liftM (mkT ∘ return) ∘ runT
+instance Error e ⇒ MonadTransControl (ErrorT e) where
+    newtype St (ErrorT e) α = StError (Either e α)
+    liftControl f = ErrorT $ liftM return $ f $ liftM StError ∘ runErrorT
+    restore (StError e) = ErrorT $ return e
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
+
+instance MonadTransControl ListT where
+    newtype St ListT α = StList [α]
+    liftControl f = ListT $ liftM return $ f $ liftM StList ∘ runListT
+    restore (StList l) = ListT $ return l
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance MonadTransControl (ReaderT r) where
-    liftControl f =
-        ReaderT $ \r →
-          let run t = liftM return (runReaderT t r)
-          in f run
+    newtype St (ReaderT r) α = StReader α
+    liftControl f = ReaderT $ \r → f $ \t → liftM StReader $ runReaderT t r
+    restore (StReader x) = return x
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance MonadTransControl (StateT s) where
-    liftControl f =
-        StateT $ \s →
-          let run t = liftM (\ ~(x, s') → StateT $ \_ → return (x, s'))
-                            (runStateT t s)
-          in liftM (\x → (x, s)) (f run)
+    newtype St (StateT s) α = StState (α, s)
+    liftControl f = StateT $ \s →
+                      liftM (\x → (x, s))
+                            (f $ \t → liftM StState $ runStateT t s)
+    restore (StState st) = StateT $ \_ → return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance MonadTransControl (Strict.StateT s) where
-    liftControl f =
-        Strict.StateT $ \s →
-          let run t = liftM (\(x, s') → Strict.StateT $ \_ → return (x, s'))
-                            (Strict.runStateT t s)
-          in liftM (\x → (x, s)) (f run)
+    newtype St (Strict.StateT s) α = StState' (α, s)
+    liftControl f = Strict.StateT $ \s →
+                      liftM (\x → (x, s))
+                            (f $ \t → liftM StState' $ Strict.runStateT t s)
+    restore (StState' st) = Strict.StateT $ \_ → return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance Monoid w ⇒ MonadTransControl (WriterT w) where
-    liftControl f = WriterT $ liftM (\x → (x, mempty)) (f run)
-        where
-          run t = liftM (\ ~(x, w) → WriterT $ return (x, w))
-                        (runWriterT t)
+    newtype St (WriterT w) α = StWriter (α, w)
+    liftControl f = WriterT $ liftM (\x → (x, mempty))
+                                    (f $ liftM StWriter ∘ runWriterT)
+    restore (StWriter st) = WriterT $ return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.WriterT w) where
-    liftControl f = Strict.WriterT $ liftM (\x → (x, mempty)) (f run)
-        where
-          run t = liftM (\(x, w) → Strict.WriterT $ return (x, w))
-                        (Strict.runWriterT t)
+    newtype St (Strict.WriterT w) α = StWriter' (α, w)
+    liftControl f = Strict.WriterT $ liftM (\x → (x, mempty))
+                                           (f $ liftM StWriter' ∘ Strict.runWriterT)
+    restore (StWriter' st) = Strict.WriterT $ return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance Monoid w ⇒ MonadTransControl (RWST r w s) where
+    newtype St (RWST r w s) α = StRWS (α, s, w)
     liftControl f =
-        RWST $ \r s →
-          let run t = liftM (\ ~(x, s', w) → RWST $ \_ _ → return (x, s', w))
-                            (runRWST t r s)
-          in liftM (\x → (x, s, mempty)) (f run)
+        RWST $ \r s → liftM (\x → (x, s, mempty))
+                            (f $ \t → liftM StRWS $ runRWST t r s)
+    restore (StRWS st) = RWST $ \_ _ → return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
+    newtype St (Strict.RWST r w s) α = StRWS' (α, s, w)
     liftControl f =
-        Strict.RWST $ \r s →
-          let run t = liftM (\(x, s', w) → Strict.RWST $ \_ _ → return (x, s', w))
-                            (Strict.runRWST t r s)
-          in liftM (\x → (x, s, mempty)) (f run)
+        Strict.RWST $ \r s → liftM (\x → (x, s, mempty))
+                                   (f $ \t → liftM StRWS' $ Strict.runRWST t r s)
+    restore (StRWS' st) = Strict.RWST $ \_ _ → return st
+    {-# INLINE liftControl #-}
+    {-# INLINE restore #-}
 
 
 --------------------------------------------------------------------------------
@@ -179,23 +192,129 @@ Instances should satisfy similar laws as the 'MonadIO' laws:
 
 Additionally instances should satisfy:
 
-@join $ liftControlIO $ \\runInIO -> runInIO m = m@
+@liftControlIO (\\runInIO -> runInIO m) >>= restoreIO = m@
 -}
 class MonadIO m ⇒ MonadControlIO m where
-    liftControlIO ∷ (RunInBase m IO → IO α) → m α
+    data StIO m ∷ * → *
 
-type RunInBase m base = ∀ β. m β → base (m β)
+    liftControlIO ∷ (RunInIO m → IO α) → m α
+
+    restoreIO ∷ StIO m α → m α
+
+type RunInIO m = ∀ β. m β → IO (StIO m β)
+
+-- | An often used composition: @controlIO f = 'liftControlIO' f >>= 'restoreIO'@
+controlIO ∷ MonadControlIO m ⇒ (RunInIO m → IO (StIO m α)) → m α
+controlIO f = liftControlIO f >>= restoreIO
+{-# INLINE controlIO #-}
 
 instance MonadControlIO IO where
-    liftControlIO = idLiftControl
+    newtype StIO IO α = StIO α
+    liftControlIO f = f $ liftM StIO
+    restoreIO (StIO x) = return x
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
 
-instance (MonadIO (t m), MonadTransControl t, MonadControlIO m) ⇒ MonadControlIO (t m) where
-    liftControlIO = liftLiftControlBase liftControlIO
+type AllSt t m α = StIO m (St t α)
 
--- | An often used composition: @controlIO = 'join' . 'liftControlIO'@
-{-# INLINABLE controlIO #-}
-controlIO ∷ MonadControlIO m ⇒ (RunInBase m IO → IO (m α)) → m α
-controlIO = join ∘ liftControlIO
+liftControlIODefault ∷ (MonadTransControl t, MonadControlIO m, Monad (t m), Monad m)
+                     ⇒ (∀ β. AllSt t m β → StIO (t m) β) -- ^ 'StIO' constructor
+                     → ((RunInIO (t m) → IO α) → t m α)
+liftControlIODefault stIO = \f → liftControl $ \run →
+                                   liftControlIO $ \runInIO →
+                                     f $ liftM stIO ∘ runInIO ∘ run
+{-# INLINE liftControlIODefault #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (IdentityT m) where
+    newtype StIO (IdentityT m) α = StIOId (AllSt IdentityT m α)
+    liftControlIO = liftControlIODefault StIOId
+    restoreIO (StIOId stIO) = IdentityT $ restoreIO stIO >>= runIdentityT ∘ restore
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (ListT m) where
+    newtype StIO (ListT m) α = StIOList (AllSt ListT m α)
+    liftControlIO = liftControlIODefault StIOList
+    restoreIO (StIOList stIO) = ListT $ restoreIO stIO >>= runListT ∘ restore
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (MaybeT m) where
+    newtype StIO (MaybeT m) α = StIOMaybe (AllSt MaybeT m α)
+    liftControlIO = liftControlIODefault StIOMaybe
+    restoreIO (StIOMaybe stIO) = MaybeT $ restoreIO stIO >>= runMaybeT ∘ restore
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance (Error e, MonadControlIO m) ⇒ MonadControlIO (ErrorT e m) where
+    newtype StIO (ErrorT e m) α = StIOError (AllSt (ErrorT e) m α)
+    liftControlIO = liftControlIODefault StIOError
+    restoreIO (StIOError stIO) = ErrorT $ restoreIO stIO >>= runErrorT ∘ restore
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (ReaderT r m) where
+    newtype StIO (ReaderT r m) α = StIOReader (AllSt (ReaderT r) m α)
+    liftControlIO = liftControlIODefault StIOReader
+    restoreIO (StIOReader stIO) = ReaderT $ \r → do
+                                    st ← restoreIO stIO
+                                    runReaderT (restore st) r
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (StateT s m) where
+    newtype StIO (StateT s m) α = StIOState (AllSt (StateT s) m α)
+    liftControlIO = liftControlIODefault StIOState
+    restoreIO (StIOState stIO) = StateT $ \s → do
+                                   st ← restoreIO stIO
+                                   runStateT (restore st) s
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance MonadControlIO m ⇒ MonadControlIO (Strict.StateT s m) where
+    newtype StIO (Strict.StateT s m) α = StIOState' (AllSt (Strict.StateT s) m α)
+    liftControlIO = liftControlIODefault StIOState'
+    restoreIO (StIOState' stIO) = Strict.StateT $ \s → do
+                                    st ← restoreIO stIO
+                                    Strict.runStateT (restore st) s
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (WriterT w m) where
+    newtype StIO (WriterT w m) α = StIOWriter (AllSt (WriterT w) m α)
+    liftControlIO =liftControlIODefault StIOWriter
+    restoreIO (StIOWriter stIO) = WriterT $ do
+                                    st ← restoreIO stIO
+                                    runWriterT (restore st)
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.WriterT w m) where
+    newtype StIO (Strict.WriterT w m) α = StIOWriter' (AllSt (Strict.WriterT w) m α)
+    liftControlIO = liftControlIODefault StIOWriter'
+    restoreIO (StIOWriter' stIO) = Strict.WriterT $ do
+                                     st ← restoreIO stIO
+                                     Strict.runWriterT (restore st)
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (RWST r w s m) where
+    newtype StIO (RWST r w s m) α = StIORWS (AllSt (RWST r w s) m α)
+    liftControlIO = liftControlIODefault StIORWS
+    restoreIO (StIORWS stIO) = RWST $ \r s → do
+                                 st ← restoreIO stIO
+                                 runRWST (restore st) r s
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
+
+instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.RWST r w s m) where
+    newtype StIO (Strict.RWST r w s m) α = StIORWS' (AllSt (Strict.RWST r w s) m α)
+    liftControlIO = liftControlIODefault StIORWS'
+    restoreIO (StIORWS' stIO) = Strict.RWST $ \r s → do
+                                  st ← restoreIO stIO
+                                  Strict.runRWST (restore st) r s
+    {-# INLINE liftControlIO #-}
+    {-# INLINE restoreIO #-}
 
 
 --------------------------------------------------------------------------------
@@ -211,9 +330,10 @@ lifting control operations of type:
 @('MonadControlIO' m => (a -> m b) -> m b)@.
 -}
 liftIOOp ∷ MonadControlIO m
-         ⇒ ((α → IO (m β)) → IO (m γ))
-         → ((α →     m β)  →     m γ)
+         ⇒ ((α → IO (StIO m β)) → IO (StIO m γ))
+         → ((α →          m β)  →          m γ)
 liftIOOp f = \g → controlIO $ \runInIO → f $ runInIO ∘ g
+{-# INLINE liftIOOp #-}
 
 {-|
 @liftIOOp_@ is a particular application of 'liftControlIO' that allows
@@ -224,100 +344,7 @@ lifting control operations of type:
 @('MonadControlIO' m => m a -> m a)@.
 -}
 liftIOOp_ ∷ MonadControlIO m
-          ⇒ (IO (m α) → IO (m β))
-          → (    m α →      m β)
+          ⇒ (IO (StIO m α) → IO (StIO m β))
+          → (         m α  →          m β)
 liftIOOp_ f = \m → controlIO $ \runInIO → f $ runInIO m
-
-
---------------------------------------------------------------------------------
--- Lifting utilties
---------------------------------------------------------------------------------
-
-{-|
-@idLiftControl@ acts as the \"identity\" 'liftControl' operation from a monad
-@m@ to itself:
-
-@idLiftControl f = f $ 'liftM' 'return'@
-
-It serves as the base case for a class like 'MonadControlIO', which
-allows control operations in some base monad (here 'IO') to be
-lifted through arbitrary stacks of zero or more monad transformers
-in one call.  For example,
-
-@
-instance 'MonadControlIO' 'IO' where
-    'liftControlIO' = 'idLiftControl'
-@
--}
-idLiftControl ∷ Monad m ⇒ (RunInBase m m → m α) → m α
-idLiftControl f = f $ liftM return
-
-{-|
-@liftLiftControlBase@ is used to compose two 'liftControl' operations:
-the outer provided by a 'MonadTransControl' instance,
-and the inner provided as the argument.
-
-It satisfies @liftLiftControlBase 'idLiftControl' = 'liftControl'@.
-
-It serves as the induction step of a 'MonadControlIO'-like class. For
-example:
-
-@
-instance ('MonadIO' (t m), 'MonadTransControl' t, 'MonadControlIO' m) => 'MonadControlIO' (t m) where
-    'liftControlIO' = 'liftLiftControlBase' 'liftControlIO'
-@
-
-using the 'MonadTransControl' instance of @t@.
-
-The function is implemented as:
-
-@
-liftLiftControlBase lftCtrlBase =
-    \f -> 'liftControl' $ \run1 ->
-            lftCtrlBase $ \runInBase ->
-              let run = 'liftM' ('join' . 'lift') . runInBase . run1
-              in f run
-@
-
-To understand it an example may help:
-
-Assume we have three monad transformers @T1@, @T2@ and @T3@. Each has an `MonadControlIO` instance where 'liftControlIO' is defined as 'liftLiftControlBase' 'liftControlIO'
-
-The following shows the recursive
-structure of 'liftControlIO' applied to a stack of three monad transformers with
-'IO' as the base monad: @t1 (t2 (t3 'IO')) a@:
-
-@
-'liftControlIO'
- =
- 'liftLiftControlBase' $
-   'liftLiftControlBase' $
-     'liftLiftControlBase' $
-       'idLiftControl'
-  =
-  \\f ->
-    'liftControl' $ \(run1 :: 'Run' t1) ->     -- Capture state of t1
-      'liftControl' $ \(run2 :: 'Run' t2) ->   -- Capture state of t2
-        'liftControl' $ \(run3 :: 'Run' t3) -> -- Capture state of t3
-          let run :: 'RunInBase' (t1 (t2 (t3 'IO'))) 'IO'
-              run = -- Restore state
-                    ('liftM' ('join' . 'lift')  :: 'IO' (           t2 (t3 'IO') (t1 (t2 (t3 'IO')) a))   -> 'IO' (                       t1 (t2 (t3 'IO')) a))
-                  . ('liftM' ('join' . 'lift')  :: 'IO' (    t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))  -> 'IO' (           t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))
-                    -- Identity conversion
-                  . ('liftM' ('join' . 'lift')  :: 'IO' ('IO' (t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))) -> 'IO' (    t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a))))
-                  . ('liftM' 'return'         :: 'IO' (    t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))  -> 'IO' ('IO' (t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))))
-                    -- Run     (computation to run:)                            (inner monad:) (restore computation:)
-                  . (run3 ::         t3 'IO'  (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)) ->        'IO'      (t3 'IO' (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a))))
-                  . (run2 ::     t2 (t3 'IO')             (t1 (t2 (t3 'IO')) a)  ->     t3 'IO'             (t2 (t3 'IO') (t1 (t2 (t3 'IO')) a)))
-                  . (run1 :: t1 (t2 (t3 'IO'))                             a   -> t2 (t3 'IO')                        (t1 (t2 (t3 'IO')) a))
-          in f run
-@
--}
-liftLiftControlBase ∷ (MonadTransControl t, Monad (t m), Monad m, Monad base)
-                    ⇒ ((RunInBase m     base → base α) →   m α) -- ^ @liftControlBase@ operation
-                    → ((RunInBase (t m) base → base α) → t m α)
-liftLiftControlBase lftCtrlBase =
-    \f → liftControl $ \run1 →
-           lftCtrlBase $ \runInBase →
-              let run = liftM (join ∘ lift) ∘ runInBase ∘ run1
-              in f run
+{-# INLINE liftIOOp_ #-}

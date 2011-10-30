@@ -110,7 +110,10 @@ import Data.Bool ( Bool )
 #endif
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadControlIO, controlIO, liftIOOp_ )
+import Control.Monad.Trans.Control ( MonadControlIO, StIO
+                                   , liftControlIO, restoreIO
+                                   , controlIO, liftIOOp_
+                                   )
 #if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
 import Control.Monad.Trans.Control ( liftIOOp )
 #endif
@@ -186,24 +189,23 @@ handleJust p handler a = controlIO $ \runInIO →
                            E.handleJust p (\e → runInIO (handler e))
                                           (runInIO a)
 
-
 --------------------------------------------------------------------------------
 -- ** The @try@ functions
 --------------------------------------------------------------------------------
 
-sequenceEither ∷ Monad m ⇒ Either e (m α) → m (Either e α)
-sequenceEither = either (return ∘ Left) (liftM Right)
+sequenceEither ∷ MonadControlIO m ⇒ Either e (StIO m α) → m (Either e α)
+sequenceEither = either (return ∘ Left) (liftM Right ∘ restoreIO)
+{-# INLINE sequenceEither #-}
 
 -- |Generalized version of 'E.try'.
 {-# INLINABLE try #-}
 try ∷ (MonadControlIO m, Exception e) ⇒ m α → m (Either e α)
-try = liftIOOp_ (liftM sequenceEither ∘ E.try)
+try m = liftControlIO (\runInIO → E.try (runInIO m)) >>= sequenceEither
 
 -- |Generalized version of 'E.tryJust'.
 {-# INLINABLE tryJust #-}
-tryJust ∷ (MonadControlIO m, Exception e) ⇒
-           (e → Maybe β) → m α → m (Either β α)
-tryJust p = liftIOOp_ (liftM sequenceEither ∘ E.tryJust p)
+tryJust ∷ (MonadControlIO m, Exception e) ⇒ (e → Maybe β) → m α → m (Either β α)
+tryJust p m = liftControlIO (\runInIO → E.tryJust p (runInIO m)) >>= sequenceEither
 
 
 --------------------------------------------------------------------------------
@@ -289,8 +291,8 @@ bracket ∷ MonadControlIO m
         → m γ
 bracket before after thing = controlIO $ \runInIO →
                                E.bracket (runInIO before)
-                                         (\m → runInIO $ m >>= after)
-                                         (\m → runInIO $ m >>= thing)
+                                         (\st → runInIO $ restoreIO st >>= after)
+                                         (\st → runInIO $ restoreIO st >>= thing)
 
 -- |Generalized version of 'E.bracket_'.  Note, any monadic side
 -- effects in @m@ of /both/ the \"acquire\" and \"release\"
@@ -326,10 +328,11 @@ bracketOnError ∷ MonadControlIO m
                → (α → m β) -- ^ computation to run last (\"release resource\")
                → (α → m γ) -- ^ computation to run in-between
                → m γ
-bracketOnError before after thing = controlIO $ \runInIO →
-                                      E.bracketOnError (runInIO before)
-                                                       (\m → runInIO $ m >>= after)
-                                                       (\m → runInIO $ m >>= thing)
+bracketOnError before after thing =
+    controlIO $ \runInIO →
+      E.bracketOnError (runInIO before)
+                       (\st → runInIO $ restoreIO st >>= after)
+                       (\st → runInIO $ restoreIO st >>= thing)
 
 
 --------------------------------------------------------------------------------
