@@ -5,8 +5,6 @@
            , FlexibleContexts
            , UndecidableInstances
            , TypeFamilies
-
-           , ScopedTypeVariables
   #-}
 
 {- |
