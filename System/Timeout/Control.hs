@@ -27,10 +27,10 @@ import qualified System.Timeout as T ( timeout )
 import Data.Function.Unicode ( (∘) )
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadControlIO, restoreIO, liftControlIO )
+import Control.Monad.Trans.Control ( MonadControlIO, restore, liftControlIO )
 
 -- | Generalized version of 'T.timeout'.
 timeout ∷ MonadControlIO m ⇒ Int → m α → m (Maybe α)
 timeout t m = liftControlIO (\runInIO → T.timeout t (runInIO m)) >>=
-                maybe (return Nothing) (liftM Just ∘ restoreIO)
+                maybe (return Nothing) (liftM Just ∘ restore)
 {-# INLINABLE timeout #-}

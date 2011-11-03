@@ -111,7 +111,7 @@ import Data.Bool ( Bool )
 
 -- from monad-control (this package):
 import Control.Monad.Trans.Control ( MonadControlIO, StIO
-                                   , liftControlIO, restoreIO
+                                   , liftControlIO, restore
                                    , controlIO, liftIOOp_
                                    )
 #if MIN_VERSION_base(4,3,0) || defined (__HADDOCK__)
@@ -194,7 +194,7 @@ handleJust p handler a = controlIO $ \runInIO →
 --------------------------------------------------------------------------------
 
 sequenceEither ∷ MonadControlIO m ⇒ Either e (StIO m α) → m (Either e α)
-sequenceEither = either (return ∘ Left) (liftM Right ∘ restoreIO)
+sequenceEither = either (return ∘ Left) (liftM Right ∘ restore)
 {-# INLINE sequenceEither #-}
 
 -- |Generalized version of 'E.try'.
@@ -230,7 +230,7 @@ mask = liftIOOp E.mask ∘ liftRestore
 liftRestore ∷ MonadControlIO m
             ⇒ ((∀ α.  m α →  m α) → β)
             → ((∀ α. IO α → IO α) → β)
-liftRestore f restore = f $ liftIOOp_ restore
+liftRestore f r = f $ liftIOOp_ r
 
 -- |Generalized version of 'E.mask_'.
 {-# INLINABLE mask_ #-}
@@ -291,8 +291,8 @@ bracket ∷ MonadControlIO m
         → m γ
 bracket before after thing = controlIO $ \runInIO →
                                E.bracket (runInIO before)
-                                         (\st → runInIO $ restoreIO st >>= after)
-                                         (\st → runInIO $ restoreIO st >>= thing)
+                                         (\st → runInIO $ restore st >>= after)
+                                         (\st → runInIO $ restore st >>= thing)
 
 -- |Generalized version of 'E.bracket_'.  Note, any monadic side
 -- effects in @m@ of /both/ the \"acquire\" and \"release\"
@@ -331,8 +331,8 @@ bracketOnError ∷ MonadControlIO m
 bracketOnError before after thing =
     controlIO $ \runInIO →
       E.bracketOnError (runInIO before)
-                       (\st → runInIO $ restoreIO st >>= after)
-                       (\st → runInIO $ restoreIO st >>= thing)
+                       (\st → runInIO $ restore st >>= after)
+                       (\st → runInIO $ restore st >>= thing)
 
 
 --------------------------------------------------------------------------------
