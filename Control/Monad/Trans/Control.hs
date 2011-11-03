@@ -1,8 +1,4 @@
-{-# LANGUAGE UnicodeSyntax
-           , NoImplicitPrelude
-           , RankNTypes
-           , TypeFamilies
-  #-}
+{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, RankNTypes, TypeFamilies #-}
 
 {- |
 Module      :  Control.Monad.Trans.Control
