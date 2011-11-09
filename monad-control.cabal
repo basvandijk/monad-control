@@ -6,9 +6,12 @@ Description:
   @MonadIO@ into which generic control operations such as @catch@ can
   be lifted from @IO@.  Instances are based on monad transformers in
   @MonadTransControl@, which includes all standard monad transformers
-  in the @transformers@ library except @ContT@.  For convenience, it
-  provides a wrapped version of @Control.Exception@ with types
-  generalized from @IO@ to all monads in @MonadControlIO@.
+  in the @transformers@ library except @ContT@.
+  .
+  For convenience, it provides wrapped versions of
+  @Control.Exception@, @Control.Concurrent.MVar@ and @System.Timeout@
+  with types generalized from @IO@ to all monads in either @MonadIO@
+  or @MonadControlIO@.
   .
   Note that this package is a rewrite of Anders Kaseorg's @monad-peel@
   library.  The main difference is that this package provides CPS
@@ -50,6 +53,7 @@ source-repository head
 Library
   Exposed-modules: Control.Monad.Trans.Control
                    Control.Exception.Control
+                   Control.Concurrent.MVar.Control
                    System.Timeout.Control
 
   Build-depends: base                 >= 3     && < 4.5
