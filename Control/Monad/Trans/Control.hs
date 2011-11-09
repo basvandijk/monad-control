@@ -1,4 +1,12 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, RankNTypes, TypeFamilies #-}
+{-# LANGUAGE CPP
+           , UnicodeSyntax
+           , NoImplicitPrelude
+           , RankNTypes
+           , TypeFamilies
+           , FunctionalDependencies
+           , FlexibleInstances
+           , UndecidableInstances
+  #-}
 
 {- |
 Module      :  Control.Monad.Trans.Control
@@ -8,7 +16,7 @@ License     :  BSD-style
 Maintainer  :  Bas van Dijk <v.dijk.bas@gmail.com>
 Stability   :  experimental
 
-(TODO: It would be nicer if the associated /data types/ 'St' and 'StIO' were
+(TODO: It would be nicer if the associated /data types/ 'St' and 'StBase' were
 associated /type synonyms/ instead. This would simplify a lot of code and could
 make some definitions more efficient because there'll be no need to wrap the
 monadic state in a data type. Unfortunately GHC has a bug which prevents this:
@@ -19,11 +27,11 @@ type synonyms when that bug is fixed.)
 module Control.Monad.Trans.Control
     ( MonadTransControl(..), Run
 
-    , MonadControlIO(..), RunInIO, ComposeSt, liftControlIODefault
+    , MonadBaseControl(..), RunInBase, ComposeSt, liftBaseControlDefault
 
-    , controlIO
+    , controlBase
 
-    , liftIOOp, liftIOOp_
+    , liftBaseOp, liftBaseOp_
     ) where
 
 
@@ -32,19 +40,24 @@ module Control.Monad.Trans.Control
 --------------------------------------------------------------------------------
 
 -- from base:
-import Data.Maybe    ( Maybe )
-import Data.Either   ( Either )
 import Data.Function ( ($) )
 import Data.Monoid   ( Monoid, mempty )
 import Control.Monad ( Monad, (>>=), return, liftM )
-import System.IO     ( IO )
+
+import System.IO                       ( IO )
+import Control.Monad.ST                ( ST )
+import GHC.Conc.Sync                   ( STM )
+import Data.Maybe                      ( Maybe )
+import Data.Either                     ( Either )
+import Text.ParserCombinators.ReadP    ( ReadP )
+import Text.ParserCombinators.ReadPrec ( ReadPrec )
+import Control.Arrow                   ( ArrowApply, ArrowMonad )
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
 
 -- from transformers:
 import Control.Monad.Trans.Class    ( MonadTrans )
-import Control.Monad.IO.Class       ( MonadIO )
 
 import Control.Monad.Trans.Identity ( IdentityT(IdentityT), runIdentityT )
 import Control.Monad.Trans.List     ( ListT    (ListT),     runListT )
@@ -193,173 +206,207 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 
 
 --------------------------------------------------------------------------------
--- MonadControlIO type class
+-- MonadBaseControl type class
 --------------------------------------------------------------------------------
 
-class MonadIO m ⇒ MonadControlIO m where
+class (Monad m, Monad b) ⇒ MonadBaseControl m b | m → b where
     -- | Monadic state of @m@.
     --
     -- Note for instance writers: This can just be a newtype wrapper around
-    -- 'ComposeSt'. For example when writing a @MonadControlIO@ instance for
+    -- 'ComposeSt'. For example when writing a @MonadBaseControl@ instance for
     -- your monad transformer @T@ you can use the following:
     --
-    -- @newtype StIO (T m) a = StIOT ('ComposeSt' T m a)@
-    data StIO m ∷ * → *
+    -- @newtype StBase (T m) a = StBaseT ('ComposeSt' T m a)@
+    data StBase m ∷ * → *
 
-    -- | @liftControlIO@ is similar to 'liftIO' in that it lifts an 'IO'
+    -- | @liftBaseControl@ is similar to 'liftIO' in that it lifts an 'IO'
     -- computation to the constructed monad.
     --
     -- Instances should satisfy similar laws as the 'MonadIO' laws:
     --
-    -- @liftControlIO . const . return = return@
+    -- @liftBaseControl . const . return = return@
     --
-    -- @liftControlIO (const (m >>= f)) = liftControlIO (const m) >>= liftControlIO . const . f@
+    -- @liftBaseControl (const (m >>= f)) = liftBaseControl (const m) >>= liftBaseControl . const . f@
     --
-    -- The difference with 'liftIO' is that before lifting the 'IO' computation
-    -- @liftControlIO@ captures the state of @m@. It then provides the 'IO'
-    -- computation with a 'RunInIO' function that allows running @m@
-    -- computations in 'IO' on the captured state.
+    -- The difference with 'liftIO' is that before lifting the base computation
+    -- @liftBaseControl@ captures the state of @m@. It then provides the base
+    -- computation with a 'RunInBase' function that allows running @m@
+    -- computations in the base monad on the captured state.
     --
-    -- Note for instance writers: you can use 'liftControlIODefault' to define
-    -- this method (This assumes that your 'StIO' is defined using 'ComposeSt'
+    -- Note for instance writers: you can use 'liftBaseControlDefault' to define
+    -- this method (This assumes that your 'StBase' is defined using 'ComposeSt'
     -- as discussed above):
     --
-    -- @liftControlIO = 'liftControlIODefault' StIOT@
-    liftControlIO ∷ (RunInIO m → IO α) → m α
+    -- @liftBaseControl = 'liftBaseControlDefault' StBaseT@
+    liftBaseControl ∷ (RunInBase m b → b α) → m α
 
     -- | Construct a @m@ computation from the monadic state of @m@ that is
-    -- returned from a 'RunInIO' function.
+    -- returned from a 'RunInBase' function.
     --
     -- Instances should satisfy:
     --
-    -- @liftControlIO (\\runInIO -> runInIO m) >>= restore = m@
-    restore ∷ StIO m α → m α
+    -- @liftBaseControl (\\runInBase -> runInBase m) >>= restore = m@
+    restore ∷ StBase m α → m α
 
 -- | A function that runs a @m@ computation on the monadic state that was
--- captured by 'liftControlIO'
+-- captured by 'liftBaseControl'
 --
--- A @RunInIO m@ function yields an 'IO' computation that returns the monadic
--- state of @m@. This state can later be used to 'restore' a @m@ computation.
-type RunInIO m = ∀ β. m β → IO (StIO m β)
+-- A @RunInBase m@ function yields a computation in the base monad of @m@ that
+-- returns the monadic state of @m@. This state can later be used to 'restore' a
+-- @m@ computation.
+type RunInBase m b = ∀ α. m α → b (StBase m α)
 
--- | An often used composition: @controlIO f = 'liftControlIO' f >>= 'restore'@
-controlIO ∷ MonadControlIO m ⇒ (RunInIO m → IO (StIO m α)) → m α
-controlIO f = liftControlIO f >>= restore
-{-# INLINE controlIO #-}
+-- | An often used composition: @controlBase f = 'liftBaseControl' f >>= 'restore'@
+controlBase ∷ MonadBaseControl m b ⇒ (RunInBase m b → b (StBase m α)) → m α
+controlBase f = liftBaseControl f >>= restore
+{-# INLINE controlBase #-}
 
-instance MonadControlIO IO where
-    newtype StIO IO α = StIO α
-    liftControlIO f = f $ liftM StIO
-    restore (StIO x) = return x
-    {-# INLINE liftControlIO #-}
-    {-# INLINE restore #-}
+
+--------------------------------------------------------------------------------
+-- MonadBaseControl instances for all monads in the base library
+--------------------------------------------------------------------------------
+
+#define BASE(ctx, m, st)                          \
+instance (ctx) ⇒ MonadBaseControl (m) (m) where { \
+    newtype StBase (m) α = st α;                  \
+    liftBaseControl f = f $ liftM st;             \
+    restore (st x) = return x;                    \
+    {-# INLINE liftBaseControl #-};               \
+    {-# INLINE restore #-}}
+
+BASE(, IO,       StIO)
+BASE(, ST s,     StST)
+BASE(, STM,      StSTM)
+BASE(, Maybe,    St)
+BASE(, Either e, StE)
+BASE(, [],       StL)
+BASE(, ReadP,    StRdP)
+BASE(, ReadPrec, StRdPr)
+BASE(, (→) r,    StF)
+BASE(ArrowApply a, ArrowMonad a, StAM)
+
+#undef BASE
+
+
+--------------------------------------------------------------------------------
+-- liftBaseControlDefault
+--------------------------------------------------------------------------------
 
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
 --
--- It can be used to define the 'StIO' for new 'MonadControlIO' instances.
-type ComposeSt t m α = StIO m (St t α)
+-- It can be used to define the 'StIO' for new 'MonadBaseControl' instances.
+type ComposeSt t m α = StBase m (St t α)
 
--- | Can be used to give a defintion of 'liftControlIO'.
+-- | Can be used to give a defintion of 'liftBaseControl'.
 --
--- It basically composes a 'liftControl' of @t@ with a 'liftControlIO' of @m@ to
--- give a 'liftControlIO' of @t m@.
-liftControlIODefault ∷ (MonadTransControl t, MonadControlIO m, Monad (t m), Monad m)
-                     ⇒ (∀ β. ComposeSt t m β → StIO (t m) β) -- ^ 'StIO' constructor
-                     → ((RunInIO (t m) → IO α) → t m α)
-liftControlIODefault stIO = \f → liftControl $ \run →
-                                   liftControlIO $ \runInIO →
-                                     f $ liftM stIO ∘ runInIO ∘ run
-{-# INLINE liftControlIODefault #-}
+-- It basically composes a 'liftControl' of @t@ with a 'liftBaseControl' of @m@ to
+-- give a 'liftBaseControl' of @t m@.
+liftBaseControlDefault ∷ ( MonadTransControl t
+                         , MonadBaseControl m b
+                         , Monad (t m)
+                         , Monad m
+                         )
+                       ⇒ (∀ β. ComposeSt t m β → StBase (t m) β) -- ^ 'StBase' constructor
+                       → ((RunInBase (t m) b  → b α) → t m α)
+liftBaseControlDefault stBase = \f → liftControl $ \run →
+                                       liftBaseControl $ \runInBase →
+                                         f $ liftM stBase ∘ runInBase ∘ run
+{-# INLINE liftBaseControlDefault #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (IdentityT m) where
-    newtype StIO (IdentityT m) α = StIOId (ComposeSt IdentityT m α)
-    liftControlIO = liftControlIODefault StIOId
-    restore (StIOId stIO) = IdentityT $ restore stIO >>= runIdentityT ∘ restoreT
-    {-# INLINE liftControlIO #-}
+
+--------------------------------------------------------------------------------
+-- MonadBaseControl transformer instances
+--------------------------------------------------------------------------------
+
+instance MonadBaseControl m b ⇒ MonadBaseControl (IdentityT m) b where
+    newtype StBase (IdentityT m) α = StBaseId (ComposeSt IdentityT m α)
+    liftBaseControl = liftBaseControlDefault StBaseId
+    restore (StBaseId stBase) = IdentityT $ restore stBase >>= runIdentityT ∘ restoreT
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (ListT m) where
-    newtype StIO (ListT m) α = StIOList (ComposeSt ListT m α)
-    liftControlIO = liftControlIODefault StIOList
-    restore (StIOList stIO) = ListT $ restore stIO >>= runListT ∘ restoreT
-    {-# INLINE liftControlIO #-}
+instance MonadBaseControl m b ⇒ MonadBaseControl (ListT m) b where
+    newtype StBase (ListT m) α = StBaseList (ComposeSt ListT m α)
+    liftBaseControl = liftBaseControlDefault StBaseList
+    restore (StBaseList stBase) = ListT $ restore stBase >>= runListT ∘ restoreT
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (MaybeT m) where
-    newtype StIO (MaybeT m) α = StIOMaybe (ComposeSt MaybeT m α)
-    liftControlIO = liftControlIODefault StIOMaybe
-    restore (StIOMaybe stIO) = MaybeT $ restore stIO >>= runMaybeT ∘ restoreT
-    {-# INLINE liftControlIO #-}
+instance MonadBaseControl m b ⇒ MonadBaseControl (MaybeT m) b where
+    newtype StBase (MaybeT m) α = StBaseMaybe (ComposeSt MaybeT m α)
+    liftBaseControl = liftBaseControlDefault StBaseMaybe
+    restore (StBaseMaybe stBase) = MaybeT $ restore stBase >>= runMaybeT ∘ restoreT
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Error e, MonadControlIO m) ⇒ MonadControlIO (ErrorT e m) where
-    newtype StIO (ErrorT e m) α = StIOError (ComposeSt (ErrorT e) m α)
-    liftControlIO = liftControlIODefault StIOError
-    restore (StIOError stIO) = ErrorT $ restore stIO >>= runErrorT ∘ restoreT
-    {-# INLINE liftControlIO #-}
+instance (Error e, MonadBaseControl m b) ⇒ MonadBaseControl (ErrorT e m) b where
+    newtype StBase (ErrorT e m) α = StBaseError (ComposeSt (ErrorT e) m α)
+    liftBaseControl = liftBaseControlDefault StBaseError
+    restore (StBaseError stBase) = ErrorT $ restore stBase >>= runErrorT ∘ restoreT
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (ReaderT r m) where
-    newtype StIO (ReaderT r m) α = StIOReader (ComposeSt (ReaderT r) m α)
-    liftControlIO = liftControlIODefault StIOReader
-    restore (StIOReader stIO) = ReaderT $ \r → do
-                                  st ← restore stIO
-                                  runReaderT (restoreT st) r
-    {-# INLINE liftControlIO #-}
+instance MonadBaseControl m b ⇒ MonadBaseControl (ReaderT r m) b where
+    newtype StBase (ReaderT r m) α = StBaseReader (ComposeSt (ReaderT r) m α)
+    liftBaseControl = liftBaseControlDefault StBaseReader
+    restore (StBaseReader stBase) = ReaderT $ \r → do
+                                      st ← restore stBase
+                                      runReaderT (restoreT st) r
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (StateT s m) where
-    newtype StIO (StateT s m) α = StIOState (ComposeSt (StateT s) m α)
-    liftControlIO = liftControlIODefault StIOState
-    restore (StIOState stIO) = StateT $ \s → do
-                                 st ← restore stIO
-                                 runStateT (restoreT st) s
-    {-# INLINE liftControlIO #-}
+instance MonadBaseControl m b ⇒ MonadBaseControl (StateT s m) b where
+    newtype StBase (StateT s m) α = StBaseState (ComposeSt (StateT s) m α)
+    liftBaseControl = liftBaseControlDefault StBaseState
+    restore (StBaseState stBase) = StateT $ \s → do
+                                     st ← restore stBase
+                                     runStateT (restoreT st) s
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadControlIO m ⇒ MonadControlIO (Strict.StateT s m) where
-    newtype StIO (Strict.StateT s m) α = StIOState' (ComposeSt (Strict.StateT s) m α)
-    liftControlIO = liftControlIODefault StIOState'
-    restore (StIOState' stIO) = Strict.StateT $ \s → do
-                                  st ← restore stIO
-                                  Strict.runStateT (restoreT st) s
-    {-# INLINE liftControlIO #-}
+instance MonadBaseControl m b ⇒ MonadBaseControl (Strict.StateT s m) b where
+    newtype StBase (Strict.StateT s m) α = StBaseState' (ComposeSt (Strict.StateT s) m α)
+    liftBaseControl = liftBaseControlDefault StBaseState'
+    restore (StBaseState' stBase) = Strict.StateT $ \s → do
+                                      st ← restore stBase
+                                      Strict.runStateT (restoreT st) s
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (WriterT w m) where
-    newtype StIO (WriterT w m) α = StIOWriter (ComposeSt (WriterT w) m α)
-    liftControlIO =liftControlIODefault StIOWriter
-    restore (StIOWriter stIO) = WriterT $ do
-                                  st ← restore stIO
-                                  runWriterT (restoreT st)
-    {-# INLINE liftControlIO #-}
+instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (WriterT w m) b where
+    newtype StBase (WriterT w m) α = StBaseWriter (ComposeSt (WriterT w) m α)
+    liftBaseControl =liftBaseControlDefault StBaseWriter
+    restore (StBaseWriter stBase) = WriterT $ do
+                                      st ← restore stBase
+                                      runWriterT (restoreT st)
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.WriterT w m) where
-    newtype StIO (Strict.WriterT w m) α = StIOWriter' (ComposeSt (Strict.WriterT w) m α)
-    liftControlIO = liftControlIODefault StIOWriter'
-    restore (StIOWriter' stIO) = Strict.WriterT $ do
-                                   st ← restore stIO
-                                   Strict.runWriterT (restoreT st)
-    {-# INLINE liftControlIO #-}
+instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (Strict.WriterT w m) b where
+    newtype StBase (Strict.WriterT w m) α = StBaseWriter' (ComposeSt (Strict.WriterT w) m α)
+    liftBaseControl = liftBaseControlDefault StBaseWriter'
+    restore (StBaseWriter' stBase) = Strict.WriterT $ do
+                                       st ← restore stBase
+                                       Strict.runWriterT (restoreT st)
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (RWST r w s m) where
-    newtype StIO (RWST r w s m) α = StIORWS (ComposeSt (RWST r w s) m α)
-    liftControlIO = liftControlIODefault StIORWS
-    restore (StIORWS stIO) = RWST $ \r s → do
-                               st ← restore stIO
-                               runRWST (restoreT st) r s
-    {-# INLINE liftControlIO #-}
+instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (RWST r w s m) b where
+    newtype StBase (RWST r w s m) α = StBaseRWS (ComposeSt (RWST r w s) m α)
+    liftBaseControl = liftBaseControlDefault StBaseRWS
+    restore (StBaseRWS stBase) = RWST $ \r s → do
+                                   st ← restore stBase
+                                   runRWST (restoreT st) r s
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.RWST r w s m) where
-    newtype StIO (Strict.RWST r w s m) α = StIORWS' (ComposeSt (Strict.RWST r w s) m α)
-    liftControlIO = liftControlIODefault StIORWS'
-    restore (StIORWS' stIO) = Strict.RWST $ \r s → do
-                                st ← restore stIO
-                                Strict.runRWST (restoreT st) r s
-    {-# INLINE liftControlIO #-}
+instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (Strict.RWST r w s m) b where
+    newtype StBase (Strict.RWST r w s m) α = StBaseRWS' (ComposeSt (Strict.RWST r w s) m α)
+    liftBaseControl = liftBaseControlDefault StBaseRWS'
+    restore (StBaseRWS' stBase) = Strict.RWST $ \r s → do
+                                    st ← restore stBase
+                                    Strict.runRWST (restoreT st) r s
+    {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
 
@@ -368,29 +415,29 @@ instance (Monoid w, MonadControlIO m) ⇒ MonadControlIO (Strict.RWST r w s m) w
 --------------------------------------------------------------------------------
 
 {-|
-@liftIOOp@ is a particular application of 'liftControlIO' that allows
+@liftBaseOp@ is a particular application of 'liftBaseControl' that allows
 lifting control operations of type:
 
 @((a -> 'IO' b) -> 'IO' b)@      (e.g. @alloca@, @withMVar v@) to:
 
-@('MonadControlIO' m => (a -> m b) -> m b)@.
+@('MonadBaseControl' m 'IO' => (a -> m b) -> m b)@.
 -}
-liftIOOp ∷ MonadControlIO m
-         ⇒ ((α → IO (StIO m β)) → IO (StIO m γ))
-         → ((α →          m β)  →          m γ)
-liftIOOp f = \g → controlIO $ \runInIO → f $ runInIO ∘ g
-{-# INLINE liftIOOp #-}
+liftBaseOp ∷ MonadBaseControl m b
+           ⇒ ((α → b (StBase m β)) → b (StBase m γ))
+           → ((α →          m β)  →            m γ)
+liftBaseOp f = \g → controlBase $ \runInBase → f $ runInBase ∘ g
+{-# INLINE liftBaseOp #-}
 
 {-|
-@liftIOOp_@ is a particular application of 'liftControlIO' that allows
+@liftBaseOp_@ is a particular application of 'liftBaseControl' that allows
 lifting control operations of type:
 
 @('IO' a -> 'IO' a)@  (e.g. @mask_@) to:
 
-@('MonadControlIO' m => m a -> m a)@.
+@('MonadBaseControl' m => m a -> m a)@.
 -}
-liftIOOp_ ∷ MonadControlIO m
-          ⇒ (IO (StIO m α) → IO (StIO m β))
-          → (         m α  →          m β)
-liftIOOp_ f = \m → controlIO $ \runInIO → f $ runInIO m
-{-# INLINE liftIOOp_ #-}
+liftBaseOp_ ∷ MonadBaseControl m b
+            ⇒ (b (StBase m α) → b (StBase m β))
+            → (          m α  →           m β)
+liftBaseOp_ f = \m → controlBase $ \runInBase → f $ runInBase m
+{-# INLINE liftBaseOp_ #-}

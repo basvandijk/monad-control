@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, FlexibleContexts #-}
 
 {- |
 Module      :  Control.Concurrent.MVar.Control
@@ -39,6 +39,7 @@ import Data.Bool     ( Bool )
 import Data.Function ( ($) )
 import Data.Maybe    ( Maybe )
 import Control.Monad ( return, void )
+import System.IO     ( IO )
 import           Control.Concurrent.MVar  ( MVar )
 import qualified Control.Concurrent.MVar as MVar
 
@@ -49,7 +50,7 @@ import Data.Function.Unicode ( (∘) )
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadControlIO, liftControlIO, liftIOOp )
+import Control.Monad.Trans.Control ( MonadBaseControl, liftBaseControl, liftBaseOp )
 import Control.Exception.Control   ( mask, onException )
 
 
@@ -94,18 +95,18 @@ isEmptyMVar ∷ MonadIO m ⇒ MVar α → m Bool
 isEmptyMVar = liftIO ∘ MVar.isEmptyMVar
 
 -- | Generalized version of 'MVar.withMVar'.
-withMVar ∷ MonadControlIO m ⇒ MVar α → (α → m β) → m β
-withMVar = liftIOOp ∘ MVar.withMVar
+withMVar ∷ MonadBaseControl m IO ⇒ MVar α → (α → m β) → m β
+withMVar = liftBaseOp ∘ MVar.withMVar
 
 -- | Generalized version of 'MVar.modifyMVar_'.
-modifyMVar_ ∷ MonadControlIO m ⇒ MVar α → (α → m α) → m ()
+modifyMVar_ ∷ (MonadBaseControl m IO, MonadIO m) ⇒ MVar α → (α → m α) → m ()
 modifyMVar_ mv f = mask $ \restore → do
                      x  ← takeMVar mv
                      x' ← restore (f x) `onException` putMVar mv x
                      putMVar mv x'
 
 -- | Generalized version of 'MVar.modifyMVar'.
-modifyMVar ∷ MonadControlIO m ⇒ MVar α → (α → m (α, β)) → m β
+modifyMVar ∷ (MonadBaseControl m IO, MonadIO m) ⇒ MVar α → (α → m (α, β)) → m β
 modifyMVar mv f = mask $ \restore → do
                     x       ← takeMVar mv
                     (x', y) ← restore (f x) `onException` putMVar mv x
@@ -116,6 +117,6 @@ modifyMVar mv f = mask $ \restore → do
 --
 -- Note any monadic side effects in @m@ of the \"finalizer\" computation are
 -- discarded.
-addMVarFinalizer ∷ MonadControlIO m ⇒ MVar α → m () → m ()
-addMVarFinalizer mv m = liftControlIO $ \runInIO →
+addMVarFinalizer ∷ MonadBaseControl m IO ⇒ MVar α → m () → m ()
+addMVarFinalizer mv m = liftBaseControl $ \runInIO →
                           MVar.addMVarFinalizer mv (void $ runInIO m)

@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, FlexibleContexts #-}
 
 -------------------------------------------------------------------------------
 -- |
@@ -21,20 +21,21 @@ module System.Timeout.Control ( timeout ) where
 import           Data.Int            ( Int )
 import           Data.Maybe          ( Maybe(Nothing, Just), maybe )
 import           Control.Monad       ( (>>=), return, liftM )
+import           System.IO           ( IO )
 import qualified System.Timeout as T ( timeout )
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadControlIO, restore, liftControlIO )
+import Control.Monad.Trans.Control ( MonadBaseControl, restore, liftBaseControl )
 
 -- | Generalized version of 'T.timeout'.
 --
 -- Note that when the given computation times out any side effects of @m@ are
 -- discarded. When the computation completes within the given time the
 -- side-effects are restored on return.
-timeout ∷ MonadControlIO m ⇒ Int → m α → m (Maybe α)
-timeout t m = liftControlIO (\runInIO → T.timeout t (runInIO m)) >>=
+timeout ∷ MonadBaseControl m IO ⇒ Int → m α → m (Maybe α)
+timeout t m = liftBaseControl (\runInIO → T.timeout t (runInIO m)) >>=
                 maybe (return Nothing) (liftM Just ∘ restore)
 {-# INLINABLE timeout #-}
