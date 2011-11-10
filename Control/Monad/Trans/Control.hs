@@ -48,8 +48,9 @@ import System.IO                       ( IO )
 import GHC.Conc.Sync                   ( STM )
 import Data.Maybe                      ( Maybe )
 import Data.Either                     ( Either )
-import qualified Control.Monad.ST.Lazy   as L ( ST )
-import qualified Control.Monad.ST.Strict as S ( ST )
+
+import           Control.Monad.ST.Lazy             ( ST )
+import qualified Control.Monad.ST.Strict as Strict ( ST )
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
@@ -277,15 +278,15 @@ instance MonadBaseControl (m) (m) where { \
     {-# INLINE liftBaseControl #-};       \
     {-# INLINE restore #-}}
 
-BASE(IO,       StIO)
-BASE(L.ST s,   StSTL)
-BASE(S.ST s,   StSTS)
-BASE(STM,      StSTM)
-BASE(Maybe,    St)
-BASE(Either e, StE)
-BASE([],       StL)
-BASE((→) r,    StF)
-BASE(Identity, StI)
+BASE(IO,          StIO)
+BASE(ST s,        StST)
+BASE(Strict.ST s, StSTS)
+BASE(STM,         StSTM)
+BASE(Maybe,       St)
+BASE(Either e,    StE)
+BASE([],          StL)
+BASE((→) r,       StF)
+BASE(Identity,    StI)
 #undef BASE
 
 
