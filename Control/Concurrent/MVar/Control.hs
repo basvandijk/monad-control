@@ -46,8 +46,8 @@ import qualified Control.Concurrent.MVar as MVar
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
 
--- from transformers:
-import Control.Monad.IO.Class ( MonadIO, liftIO )
+-- from transformers-base:
+import Control.Monad.Base ( MonadBase, liftBase )
 
 -- from monad-control (this package):
 import Control.Monad.Trans.Control ( MonadBaseControl, liftBaseControl, liftBaseOp )
@@ -59,54 +59,54 @@ import Control.Exception.Control   ( mask, onException )
 --------------------------------------------------------------------------------
 
 -- | Generalized version of 'MVar.newEmptyMVar'.
-newEmptyMVar ∷ MonadIO m ⇒ m (MVar α)
-newEmptyMVar = liftIO MVar.newEmptyMVar
+newEmptyMVar ∷ MonadBase IO m ⇒ m (MVar α)
+newEmptyMVar = liftBase MVar.newEmptyMVar
 
 -- | Generalized version of 'MVar.newMVar'.
-newMVar ∷ MonadIO m ⇒ α → m (MVar α)
-newMVar = liftIO ∘ MVar.newMVar
+newMVar ∷ MonadBase IO m ⇒ α → m (MVar α)
+newMVar = liftBase ∘ MVar.newMVar
 
 -- | Generalized version of 'MVar.takeMVar'.
-takeMVar ∷ MonadIO m ⇒ MVar α → m α
-takeMVar = liftIO ∘ MVar.takeMVar
+takeMVar ∷ MonadBase IO m ⇒ MVar α → m α
+takeMVar = liftBase ∘ MVar.takeMVar
 
 -- | Generalized version of 'MVar.putMVar'.
-putMVar ∷ MonadIO m ⇒ MVar α → α → m ()
-putMVar mv x = liftIO $ MVar.putMVar mv x
+putMVar ∷ MonadBase IO m ⇒ MVar α → α → m ()
+putMVar mv x = liftBase $ MVar.putMVar mv x
 
 -- | Generalized version of 'MVar.readMVar'.
-readMVar ∷ MonadIO m ⇒ MVar α → m α
-readMVar = liftIO ∘ MVar.readMVar
+readMVar ∷ MonadBase IO m ⇒ MVar α → m α
+readMVar = liftBase ∘ MVar.readMVar
 
 -- | Generalized version of 'MVar.swapMVar'.
-swapMVar ∷ MonadIO m ⇒ MVar α → α → m α
-swapMVar mv x = liftIO $ MVar.swapMVar mv x
+swapMVar ∷ MonadBase IO m ⇒ MVar α → α → m α
+swapMVar mv x = liftBase $ MVar.swapMVar mv x
 
 -- | Generalized version of 'MVar.tryTakeMVar'.
-tryTakeMVar ∷ MonadIO m ⇒ MVar α → m (Maybe α)
-tryTakeMVar = liftIO ∘ MVar.tryTakeMVar
+tryTakeMVar ∷ MonadBase IO m ⇒ MVar α → m (Maybe α)
+tryTakeMVar = liftBase ∘ MVar.tryTakeMVar
 
 -- | Generalized version of 'MVar.tryPutMVar'.
-tryPutMVar ∷ MonadIO m ⇒ MVar α → α → m Bool
-tryPutMVar mv x = liftIO $ MVar.tryPutMVar mv x
+tryPutMVar ∷ MonadBase IO m ⇒ MVar α → α → m Bool
+tryPutMVar mv x = liftBase $ MVar.tryPutMVar mv x
 
 -- | Generalized version of 'MVar.isEmptyMVar'.
-isEmptyMVar ∷ MonadIO m ⇒ MVar α → m Bool
-isEmptyMVar = liftIO ∘ MVar.isEmptyMVar
+isEmptyMVar ∷ MonadBase IO m ⇒ MVar α → m Bool
+isEmptyMVar = liftBase ∘ MVar.isEmptyMVar
 
 -- | Generalized version of 'MVar.withMVar'.
-withMVar ∷ MonadBaseControl m IO ⇒ MVar α → (α → m β) → m β
+withMVar ∷ MonadBaseControl IO m ⇒ MVar α → (α → m β) → m β
 withMVar = liftBaseOp ∘ MVar.withMVar
 
 -- | Generalized version of 'MVar.modifyMVar_'.
-modifyMVar_ ∷ (MonadBaseControl m IO, MonadIO m) ⇒ MVar α → (α → m α) → m ()
+modifyMVar_ ∷ (MonadBaseControl IO m, MonadBase IO m) ⇒ MVar α → (α → m α) → m ()
 modifyMVar_ mv f = mask $ \restore → do
                      x  ← takeMVar mv
                      x' ← restore (f x) `onException` putMVar mv x
                      putMVar mv x'
 
 -- | Generalized version of 'MVar.modifyMVar'.
-modifyMVar ∷ (MonadBaseControl m IO, MonadIO m) ⇒ MVar α → (α → m (α, β)) → m β
+modifyMVar ∷ (MonadBaseControl IO m, MonadBase IO m) ⇒ MVar α → (α → m (α, β)) → m β
 modifyMVar mv f = mask $ \restore → do
                     x       ← takeMVar mv
                     (x', y) ← restore (f x) `onException` putMVar mv x
@@ -117,6 +117,6 @@ modifyMVar mv f = mask $ \restore → do
 --
 -- Note any monadic side effects in @m@ of the \"finalizer\" computation are
 -- discarded.
-addMVarFinalizer ∷ MonadBaseControl m IO ⇒ MVar α → m () → m ()
+addMVarFinalizer ∷ MonadBaseControl IO m ⇒ MVar α → m () → m ()
 addMVarFinalizer mv m = liftBaseControl $ \runInIO →
                           MVar.addMVarFinalizer mv (void $ runInIO m)

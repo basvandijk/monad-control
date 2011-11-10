@@ -45,13 +45,11 @@ import Data.Monoid   ( Monoid, mempty )
 import Control.Monad ( Monad, (>>=), return, liftM )
 
 import System.IO                       ( IO )
-import Control.Monad.ST                ( ST )
 import GHC.Conc.Sync                   ( STM )
 import Data.Maybe                      ( Maybe )
 import Data.Either                     ( Either )
-import Text.ParserCombinators.ReadP    ( ReadP )
-import Text.ParserCombinators.ReadPrec ( ReadPrec )
-import Control.Arrow                   ( ArrowApply, ArrowMonad )
+import qualified Control.Monad.ST.Lazy   as L ( ST )
+import qualified Control.Monad.ST.Strict as S ( ST )
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
@@ -71,6 +69,11 @@ import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
 import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT), runWriterT )
+
+import Data.Functor.Identity ( Identity )
+
+-- from transformers-base:
+import Control.Monad.Base ( MonadBase )
 
 
 --------------------------------------------------------------------------------
@@ -209,7 +212,7 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 -- MonadBaseControl type class
 --------------------------------------------------------------------------------
 
-class (Monad m, Monad b) ⇒ MonadBaseControl m b | m → b where
+class (MonadBase b m) ⇒ MonadBaseControl b m | m → b where
     -- | Monadic state of @m@.
     --
     -- Note for instance writers: This can just be a newtype wrapper around
@@ -257,7 +260,7 @@ class (Monad m, Monad b) ⇒ MonadBaseControl m b | m → b where
 type RunInBase m b = ∀ α. m α → b (StBase m α)
 
 -- | An often used composition: @controlBase f = 'liftBaseControl' f >>= 'restore'@
-controlBase ∷ MonadBaseControl m b ⇒ (RunInBase m b → b (StBase m α)) → m α
+controlBase ∷ MonadBaseControl b m ⇒ (RunInBase m b → b (StBase m α)) → m α
 controlBase f = liftBaseControl f >>= restore
 {-# INLINE controlBase #-}
 
@@ -266,25 +269,23 @@ controlBase f = liftBaseControl f >>= restore
 -- MonadBaseControl instances for all monads in the base library
 --------------------------------------------------------------------------------
 
-#define BASE(ctx, m, st)                          \
-instance (ctx) ⇒ MonadBaseControl (m) (m) where { \
-    newtype StBase (m) α = st α;                  \
-    liftBaseControl f = f $ liftM st;             \
-    restore (st x) = return x;                    \
-    {-# INLINE liftBaseControl #-};               \
+#define BASE(m, st)                       \
+instance MonadBaseControl (m) (m) where { \
+    newtype StBase (m) α = st α;          \
+    liftBaseControl f = f $ liftM st;     \
+    restore (st x) = return x;            \
+    {-# INLINE liftBaseControl #-};       \
     {-# INLINE restore #-}}
 
-BASE(, IO,       StIO)
-BASE(, ST s,     StST)
-BASE(, STM,      StSTM)
-BASE(, Maybe,    St)
-BASE(, Either e, StE)
-BASE(, [],       StL)
-BASE(, ReadP,    StRdP)
-BASE(, ReadPrec, StRdPr)
-BASE(, (→) r,    StF)
-BASE(ArrowApply a, ArrowMonad a, StAM)
-
+BASE(IO,       StIO)
+BASE(L.ST s,   StSTL)
+BASE(S.ST s,   StSTS)
+BASE(STM,      StSTM)
+BASE(Maybe,    St)
+BASE(Either e, StE)
+BASE([],       StL)
+BASE((→) r,    StF)
+BASE(Identity, StI)
 #undef BASE
 
 
@@ -302,7 +303,7 @@ type ComposeSt t m α = StBase m (St t α)
 -- It basically composes a 'liftControl' of @t@ with a 'liftBaseControl' of @m@ to
 -- give a 'liftBaseControl' of @t m@.
 liftBaseControlDefault ∷ ( MonadTransControl t
-                         , MonadBaseControl m b
+                         , MonadBaseControl b m
                          , Monad (t m)
                          , Monad m
                          )
@@ -318,35 +319,35 @@ liftBaseControlDefault stBase = \f → liftControl $ \run →
 -- MonadBaseControl transformer instances
 --------------------------------------------------------------------------------
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (IdentityT m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (IdentityT m) where
     newtype StBase (IdentityT m) α = StBaseId (ComposeSt IdentityT m α)
     liftBaseControl = liftBaseControlDefault StBaseId
     restore (StBaseId stBase) = IdentityT $ restore stBase >>= runIdentityT ∘ restoreT
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (ListT m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (ListT m) where
     newtype StBase (ListT m) α = StBaseList (ComposeSt ListT m α)
     liftBaseControl = liftBaseControlDefault StBaseList
     restore (StBaseList stBase) = ListT $ restore stBase >>= runListT ∘ restoreT
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (MaybeT m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (MaybeT m) where
     newtype StBase (MaybeT m) α = StBaseMaybe (ComposeSt MaybeT m α)
     liftBaseControl = liftBaseControlDefault StBaseMaybe
     restore (StBaseMaybe stBase) = MaybeT $ restore stBase >>= runMaybeT ∘ restoreT
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Error e, MonadBaseControl m b) ⇒ MonadBaseControl (ErrorT e m) b where
+instance (Error e, MonadBaseControl b m) ⇒ MonadBaseControl b (ErrorT e m) where
     newtype StBase (ErrorT e m) α = StBaseError (ComposeSt (ErrorT e) m α)
     liftBaseControl = liftBaseControlDefault StBaseError
     restore (StBaseError stBase) = ErrorT $ restore stBase >>= runErrorT ∘ restoreT
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (ReaderT r m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (ReaderT r m) where
     newtype StBase (ReaderT r m) α = StBaseReader (ComposeSt (ReaderT r) m α)
     liftBaseControl = liftBaseControlDefault StBaseReader
     restore (StBaseReader stBase) = ReaderT $ \r → do
@@ -355,7 +356,7 @@ instance MonadBaseControl m b ⇒ MonadBaseControl (ReaderT r m) b where
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (StateT s m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (StateT s m) where
     newtype StBase (StateT s m) α = StBaseState (ComposeSt (StateT s) m α)
     liftBaseControl = liftBaseControlDefault StBaseState
     restore (StBaseState stBase) = StateT $ \s → do
@@ -364,7 +365,7 @@ instance MonadBaseControl m b ⇒ MonadBaseControl (StateT s m) b where
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance MonadBaseControl m b ⇒ MonadBaseControl (Strict.StateT s m) b where
+instance MonadBaseControl b m ⇒ MonadBaseControl b (Strict.StateT s m) where
     newtype StBase (Strict.StateT s m) α = StBaseState' (ComposeSt (Strict.StateT s) m α)
     liftBaseControl = liftBaseControlDefault StBaseState'
     restore (StBaseState' stBase) = Strict.StateT $ \s → do
@@ -373,7 +374,7 @@ instance MonadBaseControl m b ⇒ MonadBaseControl (Strict.StateT s m) b where
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (WriterT w m) b where
+instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (WriterT w m) where
     newtype StBase (WriterT w m) α = StBaseWriter (ComposeSt (WriterT w) m α)
     liftBaseControl =liftBaseControlDefault StBaseWriter
     restore (StBaseWriter stBase) = WriterT $ do
@@ -382,7 +383,7 @@ instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (WriterT w m) b w
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (Strict.WriterT w m) b where
+instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.WriterT w m) where
     newtype StBase (Strict.WriterT w m) α = StBaseWriter' (ComposeSt (Strict.WriterT w) m α)
     liftBaseControl = liftBaseControlDefault StBaseWriter'
     restore (StBaseWriter' stBase) = Strict.WriterT $ do
@@ -391,7 +392,7 @@ instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (Strict.WriterT w
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (RWST r w s m) b where
+instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (RWST r w s m) where
     newtype StBase (RWST r w s m) α = StBaseRWS (ComposeSt (RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StBaseRWS
     restore (StBaseRWS stBase) = RWST $ \r s → do
@@ -400,7 +401,7 @@ instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (RWST r w s m) b 
     {-# INLINE liftBaseControl #-}
     {-# INLINE restore #-}
 
-instance (Monoid w, MonadBaseControl m b) ⇒ MonadBaseControl (Strict.RWST r w s m) b where
+instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.RWST r w s m) where
     newtype StBase (Strict.RWST r w s m) α = StBaseRWS' (ComposeSt (Strict.RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StBaseRWS'
     restore (StBaseRWS' stBase) = Strict.RWST $ \r s → do
@@ -420,11 +421,11 @@ lifting control operations of type:
 
 @((a -> 'IO' b) -> 'IO' b)@      (e.g. @alloca@, @withMVar v@) to:
 
-@('MonadBaseControl' m 'IO' => (a -> m b) -> m b)@.
+@('MonadBaseControl' m 'IO' => (a -> b m) -> b m)@.
 -}
-liftBaseOp ∷ MonadBaseControl m b
+liftBaseOp ∷ MonadBaseControl b m
            ⇒ ((α → b (StBase m β)) → b (StBase m γ))
-           → ((α →          m β)  →            m γ)
+           → ((α →           m β)  →           m γ)
 liftBaseOp f = \g → controlBase $ \runInBase → f $ runInBase ∘ g
 {-# INLINE liftBaseOp #-}
 
@@ -436,7 +437,7 @@ lifting control operations of type:
 
 @('MonadBaseControl' m => m a -> m a)@.
 -}
-liftBaseOp_ ∷ MonadBaseControl m b
+liftBaseOp_ ∷ MonadBaseControl b m
             ⇒ (b (StBase m α) → b (StBase m β))
             → (          m α  →           m β)
 liftBaseOp_ f = \m → controlBase $ \runInBase → f $ runInBase m
