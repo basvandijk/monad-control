@@ -31,9 +31,6 @@ Cabal-version:       >= 1.9.2
 
 extra-source-files:  README.markdown, NEWS
 
--- TODO: Remove when http://hackage.haskell.org/trac/hackage/ticket/792 is fixed:
-extra-source-files:  test.hs
-
 --------------------------------------------------------------------------------
 
 source-repository head
