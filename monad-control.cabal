@@ -27,7 +27,7 @@ Homepage:            https://github.com/basvandijk/monad-control
 Bug-reports:         https://github.com/basvandijk/monad-control/issues
 Category:            Control
 Build-type:          Simple
-Cabal-version:       >= 1.9.2
+Cabal-version:       >= 1.6
 
 extra-source-files:  README.markdown, NEWS
 
