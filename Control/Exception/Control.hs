@@ -115,7 +115,7 @@ import Data.Function.Unicode ( (∘) )
 import Control.Monad.Base ( MonadBase, liftBase )
 
 -- from monad-control (this package):
-import Control.Monad.Trans.Control ( MonadBaseControl, StBase
+import Control.Monad.Trans.Control ( MonadBaseControl, StM
                                    , liftBaseControl, restore
                                    , controlBase, liftBaseOp_
                                    )
@@ -198,7 +198,7 @@ handleJust p handler a = controlBase $ \runInIO →
 -- ** The @try@ functions
 --------------------------------------------------------------------------------
 
-sequenceEither ∷ MonadBaseControl IO m ⇒ Either e (StBase m α) → m (Either e α)
+sequenceEither ∷ MonadBaseControl IO m ⇒ Either e (StM m α) → m (Either e α)
 sequenceEither = either (return ∘ Left) (liftM Right ∘ restore)
 {-# INLINE sequenceEither #-}
 
