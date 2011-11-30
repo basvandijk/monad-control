@@ -352,8 +352,8 @@ instance MonadBaseControl b m ⇒ MonadBaseControl b (ReaderT r m) where
     newtype StM (ReaderT r m) α = StMReader (ComposeSt (ReaderT r) m α)
     liftBaseControl = liftBaseControlDefault StMReader
     restoreM (StMReader stBase) = ReaderT $ \r → do
-                                   st ← restoreM stBase
-                                   runReaderT (restoreT st) r
+                                    st ← restoreM stBase
+                                    runReaderT (restoreT st) r
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -361,8 +361,8 @@ instance MonadBaseControl b m ⇒ MonadBaseControl b (StateT s m) where
     newtype StM (StateT s m) α = StMState (ComposeSt (StateT s) m α)
     liftBaseControl = liftBaseControlDefault StMState
     restoreM (StMState stBase) = StateT $ \s → do
-                                  st ← restoreM stBase
-                                  runStateT (restoreT st) s
+                                   st ← restoreM stBase
+                                   runStateT (restoreT st) s
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -370,8 +370,8 @@ instance MonadBaseControl b m ⇒ MonadBaseControl b (Strict.StateT s m) where
     newtype StM (Strict.StateT s m) α = StMState' (ComposeSt (Strict.StateT s) m α)
     liftBaseControl = liftBaseControlDefault StMState'
     restoreM (StMState' stBase) = Strict.StateT $ \s → do
-                                   st ← restoreM stBase
-                                   Strict.runStateT (restoreT st) s
+                                    st ← restoreM stBase
+                                    Strict.runStateT (restoreT st) s
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -379,8 +379,8 @@ instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (WriterT w m) w
     newtype StM (WriterT w m) α = StMWriter (ComposeSt (WriterT w) m α)
     liftBaseControl =liftBaseControlDefault StMWriter
     restoreM (StMWriter stBase) = WriterT $ do
-                                   st ← restoreM stBase
-                                   runWriterT (restoreT st)
+                                    st ← restoreM stBase
+                                    runWriterT (restoreT st)
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -388,8 +388,8 @@ instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.WriterT
     newtype StM (Strict.WriterT w m) α = StMWriter' (ComposeSt (Strict.WriterT w) m α)
     liftBaseControl = liftBaseControlDefault StMWriter'
     restoreM (StMWriter' stBase) = Strict.WriterT $ do
-                                    st ← restoreM stBase
-                                    Strict.runWriterT (restoreT st)
+                                     st ← restoreM stBase
+                                     Strict.runWriterT (restoreT st)
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -397,8 +397,8 @@ instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (RWST r w s m) 
     newtype StM (RWST r w s m) α = StMRWS (ComposeSt (RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StMRWS
     restoreM (StMRWS stBase) = RWST $ \r s → do
-                                st ← restoreM stBase
-                                runRWST (restoreT st) r s
+                                 st ← restoreM stBase
+                                 runRWST (restoreT st) r s
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
@@ -406,8 +406,8 @@ instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.RWST r 
     newtype StM (Strict.RWST r w s m) α = StMRWS' (ComposeSt (Strict.RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StMRWS'
     restoreM (StMRWS' stBase) = Strict.RWST $ \r s → do
-                                 st ← restoreM stBase
-                                 Strict.runRWST (restoreT st) r s
+                                  st ← restoreM stBase
+                                  Strict.runRWST (restoreT st) r s
     {-# INLINE liftBaseControl #-}
     {-# INLINE restoreM #-}
 
