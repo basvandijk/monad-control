@@ -223,16 +223,16 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- @newtype StM (T m) a = StMT ('ComposeSt' T m a)@
     data StM m ∷ * → *
 
-    -- | @liftBaseControl@ is similar to 'liftIO' in that it lifts an 'IO'
-    -- computation to the constructed monad.
+    -- | @liftBaseControl@ is similar to 'liftIO' and 'liftBase' in that it
+    -- lifts a base computation to the constructed monad.
     --
-    -- Instances should satisfy similar laws as the 'MonadIO' laws:
+    -- Instances should satisfy similar laws as the 'MonadIO' and 'MonadBase' laws:
     --
     -- @liftBaseControl . const . return = return@
     --
     -- @liftBaseControl (const (m >>= f)) = liftBaseControl (const m) >>= liftBaseControl . const . f@
     --
-    -- The difference with 'liftIO' is that before lifting the base computation
+    -- The difference with 'liftBase' is that before lifting the base computation
     -- @liftBaseControl@ captures the state of @m@. It then provides the base
     -- computation with a 'RunInBase' function that allows running @m@
     -- computations in the base monad on the captured state.
