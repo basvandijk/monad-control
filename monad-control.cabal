@@ -18,7 +18,7 @@ Description:
   language extensions to simplify and speedup most definitions.
   .
   The following @critertion@ based benchmark shows that @monad-control@
-  is on average about 175 times faster than @monad-peel@:
+  is on average about 99% faster than @monad-peel@:
   .
   @git clone <https://github.com/basvandijk/bench-monad-peel-control>@
 
