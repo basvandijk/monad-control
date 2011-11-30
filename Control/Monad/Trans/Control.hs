@@ -249,20 +249,20 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     --
     -- Instances should satisfy:
     --
-    -- @liftBaseControl (\\runInBase -> runInBase m) >>= restore = m@
-    restore ∷ StM m α → m α
+    -- @liftBaseControl (\\runInBase -> runInBase m) >>= restoreM = m@
+    restoreM ∷ StM m α → m α
 
 -- | A function that runs a @m@ computation on the monadic state that was
 -- captured by 'liftBaseControl'
 --
 -- A @RunInBase m@ function yields a computation in the base monad of @m@ that
--- returns the monadic state of @m@. This state can later be used to 'restore' a
--- @m@ computation.
+-- returns the monadic state of @m@. This state can later be used to restore the
+-- @m@ computation using 'restoreM'.
 type RunInBase m b = ∀ α. m α → b (StM m α)
 
--- | An often used composition: @controlBase f = 'liftBaseControl' f >>= 'restore'@
+-- | An often used composition: @controlBase f = 'liftBaseControl' f >>= 'restoreM'@
 controlBase ∷ MonadBaseControl b m ⇒ (RunInBase m b → b (StM m α)) → m α
-controlBase f = liftBaseControl f >>= restore
+controlBase f = liftBaseControl f >>= restoreM
 {-# INLINE controlBase #-}
 
 
@@ -274,9 +274,9 @@ controlBase f = liftBaseControl f >>= restore
 instance MonadBaseControl (M) (M) where { \
     newtype StM (M) α = ST α;             \
     liftBaseControl f = f $ liftM ST;     \
-    restore (ST x) = return x;            \
+    restoreM (ST x) = return x;           \
     {-# INLINE liftBaseControl #-};       \
-    {-# INLINE restore #-}}
+    {-# INLINE restoreM #-}}
 
 BASE(IO,          StIO)
 BASE(ST s,        StST)
@@ -323,93 +323,93 @@ liftBaseControlDefault stBase = \f → liftControl $ \run →
 instance MonadBaseControl b m ⇒ MonadBaseControl b (IdentityT m) where
     newtype StM (IdentityT m) α = StMId (ComposeSt IdentityT m α)
     liftBaseControl = liftBaseControlDefault StMId
-    restore (StMId stBase) = IdentityT $ restore stBase >>= runIdentityT ∘ restoreT
+    restoreM (StMId stBase) = IdentityT $ restoreM stBase >>= runIdentityT ∘ restoreT
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance MonadBaseControl b m ⇒ MonadBaseControl b (ListT m) where
     newtype StM (ListT m) α = StMList (ComposeSt ListT m α)
     liftBaseControl = liftBaseControlDefault StMList
-    restore (StMList stBase) = ListT $ restore stBase >>= runListT ∘ restoreT
+    restoreM (StMList stBase) = ListT $ restoreM stBase >>= runListT ∘ restoreT
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance MonadBaseControl b m ⇒ MonadBaseControl b (MaybeT m) where
     newtype StM (MaybeT m) α = StMMaybe (ComposeSt MaybeT m α)
     liftBaseControl = liftBaseControlDefault StMMaybe
-    restore (StMMaybe stBase) = MaybeT $ restore stBase >>= runMaybeT ∘ restoreT
+    restoreM (StMMaybe stBase) = MaybeT $ restoreM stBase >>= runMaybeT ∘ restoreT
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance (Error e, MonadBaseControl b m) ⇒ MonadBaseControl b (ErrorT e m) where
     newtype StM (ErrorT e m) α = StMError (ComposeSt (ErrorT e) m α)
     liftBaseControl = liftBaseControlDefault StMError
-    restore (StMError stBase) = ErrorT $ restore stBase >>= runErrorT ∘ restoreT
+    restoreM (StMError stBase) = ErrorT $ restoreM stBase >>= runErrorT ∘ restoreT
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance MonadBaseControl b m ⇒ MonadBaseControl b (ReaderT r m) where
     newtype StM (ReaderT r m) α = StMReader (ComposeSt (ReaderT r) m α)
     liftBaseControl = liftBaseControlDefault StMReader
-    restore (StMReader stBase) = ReaderT $ \r → do
-                                   st ← restore stBase
+    restoreM (StMReader stBase) = ReaderT $ \r → do
+                                   st ← restoreM stBase
                                    runReaderT (restoreT st) r
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance MonadBaseControl b m ⇒ MonadBaseControl b (StateT s m) where
     newtype StM (StateT s m) α = StMState (ComposeSt (StateT s) m α)
     liftBaseControl = liftBaseControlDefault StMState
-    restore (StMState stBase) = StateT $ \s → do
-                                  st ← restore stBase
+    restoreM (StMState stBase) = StateT $ \s → do
+                                  st ← restoreM stBase
                                   runStateT (restoreT st) s
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance MonadBaseControl b m ⇒ MonadBaseControl b (Strict.StateT s m) where
     newtype StM (Strict.StateT s m) α = StMState' (ComposeSt (Strict.StateT s) m α)
     liftBaseControl = liftBaseControlDefault StMState'
-    restore (StMState' stBase) = Strict.StateT $ \s → do
-                                   st ← restore stBase
+    restoreM (StMState' stBase) = Strict.StateT $ \s → do
+                                   st ← restoreM stBase
                                    Strict.runStateT (restoreT st) s
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (WriterT w m) where
     newtype StM (WriterT w m) α = StMWriter (ComposeSt (WriterT w) m α)
     liftBaseControl =liftBaseControlDefault StMWriter
-    restore (StMWriter stBase) = WriterT $ do
-                                   st ← restore stBase
+    restoreM (StMWriter stBase) = WriterT $ do
+                                   st ← restoreM stBase
                                    runWriterT (restoreT st)
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.WriterT w m) where
     newtype StM (Strict.WriterT w m) α = StMWriter' (ComposeSt (Strict.WriterT w) m α)
     liftBaseControl = liftBaseControlDefault StMWriter'
-    restore (StMWriter' stBase) = Strict.WriterT $ do
-                                    st ← restore stBase
+    restoreM (StMWriter' stBase) = Strict.WriterT $ do
+                                    st ← restoreM stBase
                                     Strict.runWriterT (restoreT st)
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (RWST r w s m) where
     newtype StM (RWST r w s m) α = StMRWS (ComposeSt (RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StMRWS
-    restore (StMRWS stBase) = RWST $ \r s → do
-                                st ← restore stBase
+    restoreM (StMRWS stBase) = RWST $ \r s → do
+                                st ← restoreM stBase
                                 runRWST (restoreT st) r s
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 instance (Monoid w, MonadBaseControl b m) ⇒ MonadBaseControl b (Strict.RWST r w s m) where
     newtype StM (Strict.RWST r w s m) α = StMRWS' (ComposeSt (Strict.RWST r w s) m α)
     liftBaseControl = liftBaseControlDefault StMRWS'
-    restore (StMRWS' stBase) = Strict.RWST $ \r s → do
-                                 st ← restore stBase
+    restoreM (StMRWS' stBase) = Strict.RWST $ \r s → do
+                                 st ← restoreM stBase
                                  Strict.runRWST (restoreT st) r s
     {-# INLINE liftBaseControl #-}
-    {-# INLINE restore #-}
+    {-# INLINE restoreM #-}
 
 
 --------------------------------------------------------------------------------
