@@ -338,16 +338,17 @@ defaultRestoreM unStM = restoreT ∘ restoreM ∘ unStM
 -- MonadBaseControl transformer instances
 --------------------------------------------------------------------------------
 
-#define TB(T, ST, unST)                                  \
-    MonadBaseControl b (T m) where {                     \
+#define BODY(T, ST, unST) {                              \
     newtype StM (T m) α = ST {unST ∷ ComposeSt (T) m α}; \
     liftBaseWith = defaultLiftBaseWith ST;               \
     restoreM     = defaultRestoreM   unST;               \
     {-# INLINE liftBaseWith #-};                         \
     {-# INLINE restoreM #-}}
 
-#define TRANS(         T, ST, unST) instance (     MonadBaseControl b m) ⇒ TB(T, ST, unST)
-#define TRANS_CTX(CTX, T, ST, unST) instance (CTX, MonadBaseControl b m) ⇒ TB(T, ST, unST)
+#define TRANS(         T, ST, unST) \
+  instance (     MonadBaseControl b m) ⇒ MonadBaseControl b (T m) where BODY(T, ST, unST)
+#define TRANS_CTX(CTX, T, ST, unST) \
+  instance (CTX, MonadBaseControl b m) ⇒ MonadBaseControl b (T m) where BODY(T, ST, unST)
 
 TRANS(IdentityT,       StMId,     unStMId)
 TRANS(MaybeT,          StMMaybe,  unStMMaybe)
