@@ -29,6 +29,7 @@ module Control.Monad.Trans.Control
     , MonadBaseControl (..), RunInBase
 
       -- * Defaults for MonadBaseControl
+      -- $defaults
     , ComposeSt, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
@@ -215,25 +216,6 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
 -- MonadBaseControl type class
 --------------------------------------------------------------------------------
 
-
--- | Note that by using the default definitions it's easy to make a monad
--- transformer @T@ an instance of this class:
---
--- @
--- instance MonadBaseControl b m => MonadBaseControl b (T m) where
---     newtype StM (T m) a = StMT {unStMT :: 'ComposeSt' T m a}
---     liftBaseWith = 'defaultLiftBaseWith' StMT
---     restoreM     = 'defaultRestoreM'   unStMT
--- @
---
--- Defining an instance for a base monad @B@ is equally straightforward:
---
--- @
--- instance MonadBaseControl B B where
---     newtype StM B a = StMB {unStMB :: a}
---     liftBaseWith f  = f $ liftM  StMB
---     restoreM        = return . unStMB
--- @
 class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- | Monadic state of @m@.
     data StM m ∷ * → *
@@ -297,6 +279,27 @@ BASE(Identity,    StI)
 --------------------------------------------------------------------------------
 -- Defaults for MonadBaseControl
 --------------------------------------------------------------------------------
+
+-- $defaults
+--
+-- Note that by using the following default definitions it's easy to make a
+-- monad transformer @T@ an instance of 'MonadBaseControl':
+--
+-- @
+-- instance MonadBaseControl b m => MonadBaseControl b (T m) where
+--     newtype StM (T m) a = StMT {unStMT :: 'ComposeSt' T m a}
+--     liftBaseWith = 'defaultLiftBaseWith' StMT
+--     restoreM     = 'defaultRestoreM'   unStMT
+-- @
+--
+-- Defining an instance for a base monad @B@ is equally straightforward:
+--
+-- @
+-- instance MonadBaseControl B B where
+--     newtype StM B a = StMB {unStMB :: a}
+--     liftBaseWith f  = f $ liftM  StMB
+--     restoreM        = return . unStMB
+-- @
 
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
 --
