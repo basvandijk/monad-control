@@ -36,6 +36,8 @@ module Control.Monad.Trans.Control
     , control
 
     , liftBaseOp, liftBaseOp_
+
+    , liftBaseDiscard
     ) where
 
 
@@ -46,7 +48,7 @@ module Control.Monad.Trans.Control
 -- from base:
 import Data.Function ( ($), const )
 import Data.Monoid   ( Monoid, mempty )
-import Control.Monad ( Monad, (>>=), return, liftM )
+import Control.Monad ( Monad, (>>=), return, liftM, void )
 
 import System.IO                       ( IO )
 import GHC.Conc.Sync                   ( STM )
@@ -373,30 +375,46 @@ control ∷ MonadBaseControl b m ⇒ (RunInBase m b → b (StM m α)) → m α
 control f = liftBaseWith f >>= restoreM
 {-# INLINE control #-}
 
-{-|
-@liftBaseOp@ is a particular application of 'liftBaseWith' that allows
-lifting control operations of type:
-
-@((a -> 'IO' b) -> 'IO' b)@      (e.g. @alloca@, @withMVar v@) to:
-
-@('MonadBaseControl' m 'IO' => (a -> b m) -> b m)@.
--}
+-- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
+-- lifting control operations of type:
+--
+-- @((a -> b c) -> b c)@ to: @('MonadBaseControl' b m => (a -> m c) -> m c)@.
+--
+-- For example:
+--
+-- @liftBaseOp alloca :: 'MonadBaseControl' 'IO' m => (Ptr a -> m c) -> m c@
 liftBaseOp ∷ MonadBaseControl b m
            ⇒ ((α → b (StM m β)) → b (StM m γ))
            → ((α →        m β)  →        m γ)
 liftBaseOp f = \g → control $ \runInBase → f $ runInBase ∘ g
 {-# INLINE liftBaseOp #-}
 
-{-|
-@liftBaseOp_@ is a particular application of 'liftBaseWith' that allows
-lifting control operations of type:
-
-@('IO' a -> 'IO' a)@  (e.g. @mask_@) to:
-
-@('MonadBaseControl' m => m a -> m a)@.
--}
+-- | @liftBaseOp_@ is a particular application of 'liftBaseWith' that allows
+-- lifting control operations of type:
+--
+-- @(b a -> b a)@ to: @('MonadBaseControl' b m => m a -> m a)@.
+--
+-- For example:
+--
+-- @liftBaseOp_ mask_ :: 'MonadBaseControl' 'IO' m => m a -> m a@
 liftBaseOp_ ∷ MonadBaseControl b m
             ⇒ (b (StM m α) → b (StM m β))
             → (       m α  →        m β)
 liftBaseOp_ f = \m → control $ \runInBase → f $ runInBase m
 {-# INLINE liftBaseOp_ #-}
+
+-- | @liftBaseDiscard@ is a particular application of 'liftBaseWith' that allows
+-- lifting control operations of type:
+--
+-- @(b () -> b a)@ to: @('MonadBaseControl' b m => m () -> m a)@.
+--
+-- Note that, while the argument computation @m ()@ has access to the captured
+-- state, all its side-effects in @m@ are discarded. It is run only for its
+-- side-effects in the base monad @b@.
+--
+-- For example:
+--
+-- @liftBaseDiscard forkIO :: 'MonadBaseControl' 'IO' m => m () -> m ThreadId@
+liftBaseDiscard ∷ MonadBaseControl b m ⇒ (b () → b α) → (m () → m α)
+liftBaseDiscard f = \m → liftBaseWith $ \runInBase → f $ void $ runInBase m
+{-# INLINE liftBaseDiscard #-}
