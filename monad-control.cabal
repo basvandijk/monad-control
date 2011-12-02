@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.3
+Version:             0.3.0.1
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 License:             BSD3
 License-file:        LICENSE

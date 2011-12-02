@@ -6,6 +6,7 @@
            , FunctionalDependencies
            , FlexibleInstances
            , UndecidableInstances
+           , MultiParamTypeClasses
   #-}
 
 {- |
@@ -48,15 +49,19 @@ module Control.Monad.Trans.Control
 -- from base:
 import Data.Function ( ($), const )
 import Data.Monoid   ( Monoid, mempty )
-import Control.Monad ( Monad, (>>=), return, liftM, void )
+import Control.Monad ( Monad, (>>=), return, liftM )
+import System.IO     ( IO )
+import Data.Maybe    ( Maybe )
+import Data.Either   ( Either )
 
-import System.IO                       ( IO )
-import GHC.Conc.Sync                   ( STM )
-import Data.Maybe                      ( Maybe )
-import Data.Either                     ( Either )
+#if MIN_VERSION_base(4,3,0)
+import GHC.Conc.Sync ( STM )
+#endif
 
+#if MIN_VERSION_base(4,4,0)
 import           Control.Monad.ST.Lazy             ( ST )
 import qualified Control.Monad.ST.Strict as Strict ( ST )
+#endif
 
 -- from base-unicode-symbols:
 import Data.Function.Unicode ( (∘) )
@@ -82,6 +87,13 @@ import Data.Functor.Identity ( Identity )
 -- from transformers-base:
 import Control.Monad.Base ( MonadBase )
 
+#if MIN_VERSION_base(4,3,0)
+import Control.Monad ( void )
+#else
+import Data.Functor (Functor, fmap)
+void ∷ Functor f ⇒ f α → f ()
+void = fmap (const ())
+#endif
 
 --------------------------------------------------------------------------------
 -- MonadTransControl type class
@@ -267,14 +279,21 @@ instance MonadBaseControl (M) (M) where { \
     {-# INLINE restoreM #-}}
 
 BASE(IO,          StIO)
-BASE(Strict.ST s, StSTS)
-BASE(       ST s, StST)
-BASE(STM,         StSTM)
 BASE(Maybe,       St)
 BASE(Either e,    StE)
 BASE([],          StL)
 BASE((→) r,       StF)
 BASE(Identity,    StI)
+
+#if MIN_VERSION_base(4,3,0)
+BASE(STM,         StSTM)
+#endif
+
+#if MIN_VERSION_base(4,4,0)
+BASE(Strict.ST s, StSTS)
+BASE(       ST s, StST)
+#endif
+
 #undef BASE
 
 
