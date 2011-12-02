@@ -1,3 +1,23 @@
+0.3
+
+(Released on: Fri Dec 2 09:52:16 UTC 2011)
+
+* Major new API which IMHO is easier to understand than the old one.
+
+* On average about 60 times faster than the previous release!
+
+* New package lifted-base providing lifted versions of functions from the base
+  library. It exports the following modules:
+
+  - Control.Exception.Lifted
+  - Control.Concurrent.Lifted
+  - Control.Concurrent.MVar.Lifted
+  - System.Timeout.Lifted
+
+  Not all modules from base are converted yet. If you need a lifted version of
+  some function from base, just ask me to add it or send me a patch.
+
+
 0.2.0.3
 
 (Released on: Sat Aug 27 21:18:22 UTC 2011)
