@@ -101,7 +101,7 @@ void = fmap (const ())
 
 class MonadTrans t ⇒ MonadTransControl t where
   -- | Monadic state of @t@.
-  data StT t ∷ * → *
+  data StT t ∷ (* → *) → * → *
 
   -- | @liftWith@ is similar to 'lift' in that it lifts a computation from
   -- the argument monad to the constructed monad.
@@ -116,7 +116,7 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- @liftWith@ captures the state of @t@. It then provides the @m@
   -- computation with a 'Run' function that allows running @t n@ computations in
   -- @n@ (for all @n@) on the captured state.
-  liftWith ∷ Monad m ⇒ (Run t → m α) → t m α
+  liftWith ∷ Monad m ⇒ (Run t m → m α) → t m α
 
   -- | Construct a @t@ computation from the monadic state of @t@ that is
   -- returned from a 'Run' function.
@@ -124,7 +124,7 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- Instances should satisfy:
   --
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
-  restoreT ∷ Monad m ⇒ m (StT t α) → t m α
+  restoreT ∷ Monad m ⇒ m (StT t m α) → t m α
 
 -- | A function that runs a transformed monad @t n@ on the monadic state that
 -- was captured by 'liftWith'
@@ -132,7 +132,7 @@ class MonadTrans t ⇒ MonadTransControl t where
 -- A @Run t@ function yields a computation in @n@ that returns the monadic state
 -- of @t@. This state can later be used to restore a @t@ computation using
 -- 'restoreT'.
-type Run t = ∀ n β. Monad n ⇒ t n β → n (StT t β)
+type Run t m = ∀ β. t m β → m (StT t m β)
 
 
 --------------------------------------------------------------------------------
@@ -140,42 +140,42 @@ type Run t = ∀ n β. Monad n ⇒ t n β → n (StT t β)
 --------------------------------------------------------------------------------
 
 instance MonadTransControl IdentityT where
-    newtype StT IdentityT α = StId {unStId ∷ α}
+    newtype StT IdentityT m α = StId {unStId ∷ α}
     liftWith f = IdentityT $ f $ liftM StId ∘ runIdentityT
     restoreT = IdentityT ∘ liftM unStId
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl MaybeT where
-    newtype StT MaybeT α = StMaybe {unStMaybe ∷ Maybe α}
+    newtype StT MaybeT m α = StMaybe {unStMaybe ∷ Maybe α}
     liftWith f = MaybeT $ liftM return $ f $ liftM StMaybe ∘ runMaybeT
     restoreT = MaybeT ∘ liftM unStMaybe
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Error e ⇒ MonadTransControl (ErrorT e) where
-    newtype StT (ErrorT e) α = StError {unStError ∷ Either e α}
+    newtype StT (ErrorT e) m α = StError {unStError ∷ Either e α}
     liftWith f = ErrorT $ liftM return $ f $ liftM StError ∘ runErrorT
     restoreT = ErrorT ∘ liftM unStError
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl ListT where
-    newtype StT ListT α = StList {unStList ∷ [α]}
+    newtype StT ListT m α = StList {unStList ∷ [α]}
     liftWith f = ListT $ liftM return $ f $ liftM StList ∘ runListT
     restoreT = ListT ∘ liftM unStList
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (ReaderT r) where
-    newtype StT (ReaderT r) α = StReader {unStReader ∷ α}
+    newtype StT (ReaderT r) m α = StReader {unStReader ∷ α}
     liftWith f = ReaderT $ \r → f $ \t → liftM StReader $ runReaderT t r
     restoreT = ReaderT ∘ const ∘ liftM unStReader
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (StateT s) where
-    newtype StT (StateT s) α = StState {unStState ∷ (α, s)}
+    newtype StT (StateT s) m α = StState {unStState ∷ (α, s)}
     liftWith f = StateT $ \s →
                    liftM (\x → (x, s))
                          (f $ \t → liftM StState $ runStateT t s)
@@ -184,7 +184,7 @@ instance MonadTransControl (StateT s) where
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (Strict.StateT s) where
-    newtype StT (Strict.StateT s) α = StState' {unStState' ∷  (α, s)}
+    newtype StT (Strict.StateT s) m α = StState' {unStState' ∷  (α, s)}
     liftWith f = Strict.StateT $ \s →
                    liftM (\x → (x, s))
                          (f $ \t → liftM StState' $ Strict.runStateT t s)
@@ -193,7 +193,7 @@ instance MonadTransControl (Strict.StateT s) where
     {-# INLINE restoreT #-}
 
 instance Monoid w ⇒ MonadTransControl (WriterT w) where
-    newtype StT (WriterT w) α = StWriter {unStWriter ∷ (α, w)}
+    newtype StT (WriterT w) m α = StWriter {unStWriter ∷ (α, w)}
     liftWith f = WriterT $ liftM (\x → (x, mempty))
                                  (f $ liftM StWriter ∘ runWriterT)
     restoreT = WriterT ∘ liftM unStWriter
@@ -201,7 +201,7 @@ instance Monoid w ⇒ MonadTransControl (WriterT w) where
     {-# INLINE restoreT #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.WriterT w) where
-    newtype StT (Strict.WriterT w) α = StWriter' {unStWriter' ∷ (α, w)}
+    newtype StT (Strict.WriterT w) m α = StWriter' {unStWriter' ∷ (α, w)}
     liftWith f = Strict.WriterT $ liftM (\x → (x, mempty))
                                         (f $ liftM StWriter' ∘ Strict.runWriterT)
     restoreT = Strict.WriterT ∘ liftM unStWriter'
@@ -209,7 +209,7 @@ instance Monoid w ⇒ MonadTransControl (Strict.WriterT w) where
     {-# INLINE restoreT #-}
 
 instance Monoid w ⇒ MonadTransControl (RWST r w s) where
-    newtype StT (RWST r w s) α = StRWS {unStRWS ∷ (α, s, w)}
+    newtype StT (RWST r w s) m α = StRWS {unStRWS ∷ (α, s, w)}
     liftWith f = RWST $ \r s → liftM (\x → (x, s, mempty))
                                      (f $ \t → liftM StRWS $ runRWST t r s)
     restoreT mSt = RWST $ \_ _ → liftM unStRWS mSt
@@ -217,7 +217,7 @@ instance Monoid w ⇒ MonadTransControl (RWST r w s) where
     {-# INLINE restoreT #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
-    newtype StT (Strict.RWST r w s) α = StRWS' {unStRWS' ∷  (α, s, w)}
+    newtype StT (Strict.RWST r w s) m α = StRWS' {unStRWS' ∷  (α, s, w)}
     liftWith f =
         Strict.RWST $ \r s → liftM (\x → (x, s, mempty))
                                    (f $ \t → liftM StRWS' $ Strict.runRWST t r s)
@@ -325,7 +325,7 @@ BASE(       ST s, StST)
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
 --
 -- It can be used to define the 'StM' for new 'MonadBaseControl' instances.
-type ComposeSt t m α = StM m (StT t α)
+type ComposeSt t m α = StM m (StT t m α)
 
 -- | Default defintion for the 'liftBaseWith' method.
 --
