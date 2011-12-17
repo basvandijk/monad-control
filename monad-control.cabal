@@ -59,6 +59,6 @@ Library
   Build-depends: base                 >= 3     && < 4.6
                , base-unicode-symbols >= 0.1.1 && < 0.3
                , transformers         >= 0.2   && < 0.3
-               , transformers-base    >= 0.4   && < 0.5
+               , transformers-base    >= 0.4.1 && < 0.5
 
   Ghc-options: -Wall
