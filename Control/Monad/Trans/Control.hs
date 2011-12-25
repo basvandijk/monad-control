@@ -49,10 +49,11 @@ module Control.Monad.Trans.Control
 -- from base:
 import Data.Function ( ($), const )
 import Data.Monoid   ( Monoid, mempty )
-import Control.Monad ( Monad, (>>=), return, liftM )
+import Control.Monad ( Monad, (>>=), (=<<), return, liftM )
 import System.IO     ( IO )
-import Data.Maybe    ( Maybe )
-import Data.Either   ( Either )
+import Data.Maybe    ( Maybe(Nothing, Just), listToMaybe )
+import Data.Either   ( Either, either )
+import Data.Tuple    ( fst )
 
 #if MIN_VERSION_base(4,3,0)
 import GHC.Conc.Sync ( STM )
@@ -126,6 +127,8 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
   restoreT ∷ Monad m ⇒ m (StT t α) → t m α
 
+  getValueT ∷ StT t α → Maybe α
+
 -- | A function that runs a transformed monad @t n@ on the monadic state that
 -- was captured by 'liftWith'
 --
@@ -143,36 +146,46 @@ instance MonadTransControl IdentityT where
     newtype StT IdentityT α = StId {unStId ∷ α}
     liftWith f = IdentityT $ f $ liftM StId ∘ runIdentityT
     restoreT = IdentityT ∘ liftM unStId
+    getValueT = Just ∘ unStId
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance MonadTransControl MaybeT where
     newtype StT MaybeT α = StMaybe {unStMaybe ∷ Maybe α}
     liftWith f = MaybeT $ liftM return $ f $ liftM StMaybe ∘ runMaybeT
     restoreT = MaybeT ∘ liftM unStMaybe
+    getValueT = unStMaybe
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance Error e ⇒ MonadTransControl (ErrorT e) where
     newtype StT (ErrorT e) α = StError {unStError ∷ Either e α}
     liftWith f = ErrorT $ liftM return $ f $ liftM StError ∘ runErrorT
     restoreT = ErrorT ∘ liftM unStError
+    getValueT = either (const Nothing) Just ∘ unStError
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance MonadTransControl ListT where
     newtype StT ListT α = StList {unStList ∷ [α]}
     liftWith f = ListT $ liftM return $ f $ liftM StList ∘ runListT
     restoreT = ListT ∘ liftM unStList
+    getValueT = listToMaybe ∘ unStList
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance MonadTransControl (ReaderT r) where
     newtype StT (ReaderT r) α = StReader {unStReader ∷ α}
     liftWith f = ReaderT $ \r → f $ \t → liftM StReader $ runReaderT t r
     restoreT = ReaderT ∘ const ∘ liftM unStReader
+    getValueT = Just ∘ unStReader
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance MonadTransControl (StateT s) where
     newtype StT (StateT s) α = StState {unStState ∷ (α, s)}
@@ -180,8 +193,10 @@ instance MonadTransControl (StateT s) where
                    liftM (\x → (x, s))
                          (f $ \t → liftM StState $ runStateT t s)
     restoreT = StateT ∘ const ∘ liftM unStState
+    getValueT = Just ∘ fst ∘ unStState
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance MonadTransControl (Strict.StateT s) where
     newtype StT (Strict.StateT s) α = StState' {unStState' ∷  (α, s)}
@@ -189,32 +204,40 @@ instance MonadTransControl (Strict.StateT s) where
                    liftM (\x → (x, s))
                          (f $ \t → liftM StState' $ Strict.runStateT t s)
     restoreT = Strict.StateT ∘ const ∘ liftM unStState'
+    getValueT = Just ∘ fst ∘ unStState'
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance Monoid w ⇒ MonadTransControl (WriterT w) where
     newtype StT (WriterT w) α = StWriter {unStWriter ∷ (α, w)}
     liftWith f = WriterT $ liftM (\x → (x, mempty))
                                  (f $ liftM StWriter ∘ runWriterT)
     restoreT = WriterT ∘ liftM unStWriter
+    getValueT = Just ∘ fst ∘ unStWriter
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.WriterT w) where
     newtype StT (Strict.WriterT w) α = StWriter' {unStWriter' ∷ (α, w)}
     liftWith f = Strict.WriterT $ liftM (\x → (x, mempty))
                                         (f $ liftM StWriter' ∘ Strict.runWriterT)
     restoreT = Strict.WriterT ∘ liftM unStWriter'
+    getValueT = Just ∘ fst ∘ unStWriter'
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance Monoid w ⇒ MonadTransControl (RWST r w s) where
     newtype StT (RWST r w s) α = StRWS {unStRWS ∷ (α, s, w)}
     liftWith f = RWST $ \r s → liftM (\x → (x, s, mempty))
                                      (f $ \t → liftM StRWS $ runRWST t r s)
     restoreT mSt = RWST $ \_ _ → liftM unStRWS mSt
+    getValueT = Just ∘ fst3 ∘ unStRWS
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
 instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
     newtype StT (Strict.RWST r w s) α = StRWS' {unStRWS' ∷  (α, s, w)}
@@ -222,9 +245,13 @@ instance Monoid w ⇒ MonadTransControl (Strict.RWST r w s) where
         Strict.RWST $ \r s → liftM (\x → (x, s, mempty))
                                    (f $ \t → liftM StRWS' $ Strict.runRWST t r s)
     restoreT mSt = Strict.RWST $ \_ _ → liftM unStRWS' mSt
+    getValueT = Just ∘ fst3 ∘ unStRWS'
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+    {-# INLINE getValueT #-}
 
+fst3 ∷ (α, β, γ) → α
+fst3   (x, _, _) = x
 
 --------------------------------------------------------------------------------
 -- MonadBaseControl type class
@@ -257,6 +284,8 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- @liftBaseWith (\\runInBase -> runInBase m) >>= restoreM = m@
     restoreM ∷ StM m α → m α
 
+    getValueM ∷ StM m α → Maybe α
+
 -- | A function that runs a @m@ computation on the monadic state that was
 -- captured by 'liftBaseWith'
 --
@@ -275,8 +304,10 @@ instance MonadBaseControl (M) (M) where { \
     newtype StM (M) α = ST α;             \
     liftBaseWith f = f $ liftM ST;        \
     restoreM (ST x) = return x;           \
+    getValueM (ST x) = Just x;            \
     {-# INLINE liftBaseWith #-};          \
-    {-# INLINE restoreM #-}}
+    {-# INLINE restoreM #-};              \
+    {-# INLINE getValueM #-}}
 
 BASE(IO,          StIO)
 BASE(Maybe,       St)
@@ -311,6 +342,7 @@ BASE(       ST s, StST)
 --     newtype StM (T m) a = StMT {unStMT :: 'ComposeSt' T m a}
 --     liftBaseWith = 'defaultLiftBaseWith' StMT
 --     restoreM     = 'defaultRestoreM'   unStMT
+--     getValueM    = 'defaultGetValueM'  unStMT
 -- @
 --
 -- Defining an instance for a base monad @B@ is equally straightforward:
@@ -320,6 +352,7 @@ BASE(       ST s, StST)
 --     newtype StM B a = StMB {unStMB :: a}
 --     liftBaseWith f  = f $ liftM  StMB
 --     restoreM        = return . unStMB
+--     getValueM       = Just   . unStMB
 -- @
 
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
@@ -354,6 +387,11 @@ defaultRestoreM ∷ (MonadTransControl t, MonadBaseControl b m)
 defaultRestoreM unStM = restoreT ∘ restoreM ∘ unStM
 {-# INLINE defaultRestoreM #-}
 
+defaultGetValueM ∷ (MonadTransControl t, MonadBaseControl b m)
+                 ⇒ (StM (t m) α → ComposeSt t m α)
+                 → (StM (t m) α → Maybe α)
+defaultGetValueM unStM = (getValueT =<<) ∘ getValueM ∘ unStM
+{-# INLINE defaultGetValueM #-}
 
 --------------------------------------------------------------------------------
 -- MonadBaseControl transformer instances
@@ -363,7 +401,9 @@ defaultRestoreM unStM = restoreT ∘ restoreM ∘ unStM
     newtype StM (T m) α = ST {unST ∷ ComposeSt (T) m α}; \
     liftBaseWith = defaultLiftBaseWith ST;               \
     restoreM     = defaultRestoreM   unST;               \
+    getValueM    = defaultGetValueM  unST;               \
     {-# INLINE liftBaseWith #-};                         \
+    {-# INLINE getValueM #-};                            \
     {-# INLINE restoreM #-}}
 
 #define TRANS(         T, ST, unST) \
