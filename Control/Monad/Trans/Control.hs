@@ -124,6 +124,8 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- Instances should satisfy:
   --
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
+  --
+  -- @restoreT (return st) >> restoreT (return st') = restoreT (return st')@
   restoreT ∷ Monad m ⇒ m (StT t m α) → t m α
 
 -- | A function that runs a transformed monad @t n@ on the monadic state that
@@ -255,6 +257,8 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- Instances should satisfy:
     --
     -- @liftBaseWith (\\runInBase -> runInBase m) >>= restoreM = m@
+    --
+    -- @restoreM st >> restoreM st' = restoreM st'@
     restoreM ∷ StM m α → m α
 
 -- | A function that runs a @m@ computation on the monadic state that was
