@@ -30,11 +30,18 @@ type synonyms when that bug is fixed.)
 -}
 
 module Control.Monad.Trans.Control
-    ( MonadTransControl(..), Run
+    ( -- * MonadTransControl
+      MonadTransControl(..), Run
+
+      -- ** Defaults for MonadTransControl
+      -- $MonadTransControlDefaults
+    , defaultLiftWith, defaultRestoreT
+
+      -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
-      -- * Defaults for MonadBaseControl
-      -- $defaults
+      -- ** Defaults for MonadBaseControl
+      -- $MonadBaseControlDefaults
     , ComposeSt, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
@@ -137,6 +144,44 @@ class MonadTrans t ⇒ MonadTransControl t where
 -- of @t@. This state can later be used to restore a @t@ computation using
 -- 'restoreT'.
 type Run t = ∀ n b. Monad n ⇒ t n b → n (StT t b)
+
+
+--------------------------------------------------------------------------------
+-- Defaults for MonadTransControl
+--------------------------------------------------------------------------------
+
+-- $MonadTransControlDefaults
+-- Following functions can be used to define 'MonadTransControl' instances for
+-- newtypes.
+--
+-- @{-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
+--
+-- newtype CounterT m a = CounterT {unCounterT :: StateT Int m a}
+--   deriving (Monad, MonadTrans)
+--
+-- instance MonadTransControl CounterT where
+--     newtype StT CounterT a = StCounter {unStCounter :: StT (StateT Int) a}
+--     liftWith = 'defaultLiftWith' CounterT unCounterT StCounter
+--     restoreT = 'defaultRestoreT' CounterT unStCounter
+-- @
+
+-- | Default definition for the 'liftWith' method.
+defaultLiftWith ∷ (Monad m, MonadTransControl n)
+                ⇒ (∀ b.   n m b → t m b)     -- ^ Monad constructor
+                → (∀ o b. t o b → n o b)     -- ^ Monad deconstructor
+                → (∀ b.   StT n b → StT t b) -- ^ 'StT' constructor
+                → (Run t → m a)
+                → t m a
+defaultLiftWith t unT stT = \f → t $ liftWith $ \x → f $ liftM stT ∘ x ∘ unT
+{-# INLINE defaultLiftWith #-}
+
+defaultRestoreT ∷ (Monad m, MonadTransControl n)
+                ⇒ (n m a → t m a)     -- ^ Monad constructor
+                → (StT t a → StT n a) -- ^ 'StT' deconstructor
+                → m (StT t a)
+                → t m a
+defaultRestoreT t unStT = t ∘ restoreT ∘ liftM unStT
+{-# INLINE defaultRestoreT #-}
 
 
 --------------------------------------------------------------------------------
@@ -305,7 +350,7 @@ BASE(       ST s, StST)
 -- Defaults for MonadBaseControl
 --------------------------------------------------------------------------------
 
--- $defaults
+-- $MonadBaseControlDefaults
 --
 -- Note that by using the following default definitions it's easy to make a
 -- monad transformer @T@ an instance of 'MonadBaseControl':
