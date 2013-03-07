@@ -1,0 +1,5 @@
+Bas van Dijk wrote this library.
+
+Anders Kaseorg wrote the monad-peel which provided inspiration for this library.
+
+kudah <kudahkukarek@gmail.com> wrote the default methods for the MonadTransControl class.
