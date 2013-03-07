@@ -172,7 +172,7 @@ defaultLiftWith ∷ (Monad m, MonadTransControl n)
                 → (∀ b.   StT n b → StT t b) -- ^ 'StT' constructor
                 → (Run t → m a)
                 → t m a
-defaultLiftWith t unT stT = \f → t $ liftWith $ \x → f $ liftM stT ∘ x ∘ unT
+defaultLiftWith t unT stT = \f → t $ liftWith $ \run → f $ liftM stT ∘ run ∘ unT
 {-# INLINE defaultLiftWith #-}
 
 defaultRestoreT ∷ (Monad m, MonadTransControl n)
