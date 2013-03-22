@@ -10,6 +10,10 @@
            , TypeOperators
   #-}
 
+#if __GLASGOW_HASKELL__ >= 702
+{-# LANGUAGE Trustworthy #-}
+#endif
+
 {- |
 Module      :  Control.Monad.Trans.Control
 Copyright   :  Bas van Dijk, Anders Kaseorg
@@ -20,11 +24,18 @@ Stability   :  experimental
 -}
 
 module Control.Monad.Trans.Control
-    ( MonadTransControl(..), Run
+    ( -- $example
+
+      -- * MonadTransControl
+      MonadTransControl(..), Run
+
+      -- ** Defaults for MonadTransControl
+    , DefaultStT, defaultLiftWith,     defaultRestoreT
+
+      -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
-      -- * Defaults for MonadBaseControl
-      -- $defaults
+      -- ** Defaults for MonadBaseControl
     , DefaultStM, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
@@ -52,7 +63,7 @@ import Data.Either   ( Either )
 import GHC.Conc.Sync ( STM )
 #endif
 
-#if MIN_VERSION_base(4,4,0)
+#if MIN_VERSION_base(4,4,0) || defined(INSTANCE_ST)
 import           Control.Monad.ST.Lazy             ( ST )
 import qualified Control.Monad.ST.Strict as Strict ( ST )
 #endif
@@ -86,9 +97,51 @@ import Control.Monad.Base ( MonadBase )
 import Control.Monad ( void )
 #else
 import Data.Functor (Functor, fmap)
-void ∷ Functor f ⇒ f α → f ()
+void ∷ Functor f ⇒ f a → f ()
 void = fmap (const ())
 #endif
+
+--------------------------------------------------------------------------------
+-- Example
+--------------------------------------------------------------------------------
+
+-- $example
+--
+-- The following example shows how to make a custom monad transformer
+-- (which wraps another monad transformer) an instance of both
+-- 'MonadTransControl' and 'MonadBaseControl':
+--
+-- @
+-- {-\# LANGUAGE GeneralizedNewtypeDeriving,
+--              TypeFamilies,
+--              FlexibleInstances,
+--              MultiParamTypeClasses,
+--              UndecidableInstances -- Needed for the MonadBase instance
+--   \#-}
+--
+-- import Control.Applicative
+--import Control.Monad.Base
+--import Control.Monad.Trans.Class
+--import Control.Monad.Trans.Control
+--import Control.Monad.Trans.State
+--
+-- newtype CounterT m a = CounterT {unCounterT :: StateT Int m a}
+--    deriving (Functor, Applicative, Monad, MonadTrans)
+--
+-- instance MonadBase b m => MonadBase b (CounterT m) where
+--    liftBase = liftBaseDefault
+--
+-- instance 'MonadTransControl' CounterT where
+--    type StT CounterT = 'DefaultStT' (StateT Int)
+--    liftWith = 'defaultLiftWith' CounterT unCounterT
+--    restoreT = 'defaultRestoreT' CounterT
+--
+-- instance 'MonadBaseControl' b m => 'MonadBaseControl' b (CounterT m) where
+--    type StM (CounterT m) = 'DefaultStM' CounterT m
+--    liftBaseWith = 'defaultLiftBaseWith'
+--    restoreM     = 'defaultRestoreM'
+-- @
+
 
 --------------------------------------------------------------------------------
 -- MonadTransControl type class
@@ -111,7 +164,7 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- @liftWith@ captures the state of @t@. It then provides the @m@
   -- computation with a 'Run' function that allows running @t n@ computations in
   -- @n@ (for all @n@) on the captured state.
-  liftWith ∷ Monad m ⇒ (Run t → m α) → t m α
+  liftWith ∷ Monad m ⇒ (Run t → m a) → t m a
 
   -- | Construct a @t@ computation from the monadic state of @t@ that is
   -- returned from a 'Run' function.
@@ -119,7 +172,7 @@ class MonadTrans t ⇒ MonadTransControl t where
   -- Instances should satisfy:
   --
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
-  restoreT ∷ Monad m ⇒ m (StT t α) → t m α
+  restoreT ∷ Monad m ⇒ m (StT t a) → t m a
 
 -- | A function that runs a transformed monad @t n@ on the monadic state that
 -- was captured by 'liftWith'
@@ -127,7 +180,41 @@ class MonadTrans t ⇒ MonadTransControl t where
 -- A @Run t@ function yields a computation in @n@ that returns the monadic state
 -- of @t@. This state can later be used to restore a @t@ computation using
 -- 'restoreT'.
-type Run t = ∀ n β. Monad n ⇒ t n β → n (StT t β)
+type Run t = ∀ n b. Monad n ⇒ t n b → n (StT t b)
+
+
+--------------------------------------------------------------------------------
+-- Defaults for MonadTransControl
+--------------------------------------------------------------------------------
+
+-- | Default definition for the 'StT' associated type synonym that can
+-- be used in the 'MonadTransControl' instance for newtypes wrapping
+-- other monad transformers. (See the example at the top of this module).
+type DefaultStT n = IdentityT (StT n)
+
+-- | Default definition for the 'liftWith' method that can be used in
+-- the 'MonadTransControl' instance for newtypes wrapping other monad
+-- transformers. (See the example at the top of this module).
+--
+-- Note that:
+-- @defaultLiftWith t unT = \\f -> t $ 'liftWith' $ \\run -> f $ liftM IdentityT . run . unT@
+defaultLiftWith ∷ (Monad m, MonadTransControl n)
+                ⇒ (∀ b.   n m b → t m b)     -- ^ Monad constructor
+                → (∀ o b. t o b → n o b)     -- ^ Monad deconstructor
+                → ((∀ k b. Monad k ⇒ t k b → k (DefaultStT n b)) → m a) → t m a
+defaultLiftWith t unT = \f → t $ liftWith $ \run → f $ liftM IdentityT ∘ run ∘ unT
+{-# INLINE defaultLiftWith #-}
+
+-- | Default definition for the 'restoreT' method that can be used in
+-- the 'MonadTransControl' instance for newtypes wrapping other monad
+-- transformers. (See the example at the top of this module).
+--
+-- Note that: @defaultRestoreT t = t . 'restoreT' . liftM runIdentityT@
+defaultRestoreT ∷ (Monad m, MonadTransControl n)
+                ⇒ (n m a → t m a)     -- ^ Monad constructor
+                → m (DefaultStT n a) → t m a
+defaultRestoreT t = t ∘ restoreT ∘ liftM runIdentityT
+{-# INLINE defaultRestoreT #-}
 
 
 --------------------------------------------------------------------------------
@@ -247,7 +334,7 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- @liftBaseWith@ captures the state of @m@. It then provides the base
     -- computation with a 'RunInBase' function that allows running @m@
     -- computations in the base monad on the captured state.
-    liftBaseWith ∷ (RunInBase m b → b α) → m α
+    liftBaseWith ∷ (RunInBase m b → b a) → m a
 
     -- | Construct a @m@ computation from the monadic state of @m@ that is
     -- returned from a 'RunInBase' function.
@@ -255,7 +342,7 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
     -- Instances should satisfy:
     --
     -- @liftBaseWith (\\runInBase -> runInBase m) >>= restoreM = m@
-    restoreM ∷ StM m α → m α
+    restoreM ∷ StM m a → m a
 
 -- | A function that runs a @m@ computation on the monadic state that was
 -- captured by 'liftBaseWith'
@@ -263,7 +350,7 @@ class MonadBase b m ⇒ MonadBaseControl b m | m → b where
 -- A @RunInBase m@ function yields a computation in the base monad of @m@ that
 -- returns the monadic state of @m@. This state can later be used to restore the
 -- @m@ computation using 'restoreM'.
-type RunInBase m b = ∀ α. m α → b (StM m α)
+type RunInBase m b = ∀ a. m a → b (StM m a)
 
 
 --------------------------------------------------------------------------------
@@ -289,7 +376,7 @@ BASE(Identity)
 BASE(STM)
 #endif
 
-#if MIN_VERSION_base(4,4,0)
+#if MIN_VERSION_base(4,4,0) || defined(INSTANCE_ST)
 BASE(Strict.ST s)
 BASE(       ST s)
 #endif
@@ -301,28 +388,9 @@ BASE(       ST s)
 -- Defaults for MonadBaseControl
 --------------------------------------------------------------------------------
 
--- $defaults
---
--- Note that by using the following default definitions it's easy to make a
--- monad transformer @T@ an instance of 'MonadBaseControl':
---
--- @
--- instance MonadBaseControl b m => MonadBaseControl b (T m) where
---     type StM (T m) = 'DefaultStM' T m
---     liftBaseWith   = 'defaultLiftBaseWith'
---     restoreM       = 'defaultRestoreM'
--- @
---
--- Defining an instance for a base monad @B@ is equally straightforward:
---
--- @
--- instance MonadBaseControl B B where
---     newtype StM B  = Identity
---     liftBaseWith f = f $ liftM Identity
---     restoreM       = return . runIdentity
--- @
-
 -- | Default definition for the 'StM' associated type synonym.
+--
+-- It can be used to define the 'StM' for new 'MonadBaseControl' instances.
 type DefaultStM t m = StM m `Compose` StT t
 
 -- | Default defintion for the 'liftBaseWith' method.
@@ -392,7 +460,7 @@ TRANS_CTX(Monoid w,        RWST r w s)
 --------------------------------------------------------------------------------
 
 -- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
-control ∷ MonadBaseControl b m ⇒ (RunInBase m b → b (StM m α)) → m α
+control ∷ MonadBaseControl b m ⇒ (RunInBase m b → b (StM m a)) → m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINE control #-}
 
@@ -405,8 +473,8 @@ control f = liftBaseWith f >>= restoreM
 --
 -- @liftBaseOp alloca :: 'MonadBaseControl' 'IO' m => (Ptr a -> m c) -> m c@
 liftBaseOp ∷ MonadBaseControl b m
-           ⇒ ((α → b (StM m β)) → b (StM m γ))
-           → ((α →        m β)  →        m γ)
+           ⇒ ((a → b (StM m c)) → b (StM m d))
+           → ((a →        m c)  →        m d)
 liftBaseOp f = \g → control $ \runInBase → f $ runInBase ∘ g
 {-# INLINE liftBaseOp #-}
 
@@ -419,8 +487,8 @@ liftBaseOp f = \g → control $ \runInBase → f $ runInBase ∘ g
 --
 -- @liftBaseOp_ mask_ :: 'MonadBaseControl' 'IO' m => m a -> m a@
 liftBaseOp_ ∷ MonadBaseControl b m
-            ⇒ (b (StM m α) → b (StM m β))
-            → (       m α  →        m β)
+            ⇒ (b (StM m a) → b (StM m c))
+            → (       m a  →        m c)
 liftBaseOp_ f = \m → control $ \runInBase → f $ runInBase m
 {-# INLINE liftBaseOp_ #-}
 
@@ -436,6 +504,6 @@ liftBaseOp_ f = \m → control $ \runInBase → f $ runInBase m
 -- For example:
 --
 -- @liftBaseDiscard forkIO :: 'MonadBaseControl' 'IO' m => m () -> m ThreadId@
-liftBaseDiscard ∷ MonadBaseControl b m ⇒ (b () → b α) → (m () → m α)
+liftBaseDiscard ∷ MonadBaseControl b m ⇒ (b () → b a) → (m () → m a)
 liftBaseDiscard f = \m → liftBaseWith $ \runInBase → f $ void $ runInBase m
 {-# INLINE liftBaseDiscard #-}
