@@ -29,7 +29,7 @@ module Control.Monad.Trans.Control
       MonadTransControl(..), Run
 
       -- ** Defaults for MonadTransControl
-    , DefaultStT, defaultLiftWith,     defaultRestoreT
+    , DefaultStT, defaultLiftWith, RunDefault, defaultRestoreT
 
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
@@ -194,33 +194,35 @@ type DefaultStT n = IdentityT (StT n)
 
 -- | Default definition for the 'liftWith' method that can be used in
 -- the 'MonadTransControl' instance for newtypes wrapping other monad
--- transformers. (See the example at the top of this module).
---
--- Note that:
+-- transformers. (See the example at the top of this module). Note that:
 --
 -- @defaultLiftWith t unT = \\f ->
 --    t $ 'liftWith' $ \\run ->
 --          f $ liftM IdentityT . run . unT
 -- @
-defaultLiftWith :: (Monad m, MonadTransControl n)
-                => (forall b.   n m b -> t m b)     -- ^ Monad constructor
-                -> (forall o b. t o b -> n o b)     -- ^ Monad deconstructor
-                -> ((forall k b. Monad k => t k b -> k (DefaultStT n b)) -> m a) -> t m a
+defaultLiftWith :: (Monad m, MonadTransControl t')
+                => (forall b.   t' m b -> t  m b) -- ^ Monad constructor
+                -> (forall o b. t  o b -> t' o b) -- ^ Monad deconstructor
+                -> ((RunDefault t t' -> m a) -> t m a)
 defaultLiftWith t unT = \f ->
     t $ liftWith $ \run ->
           f $ liftM IdentityT . run . unT
 {-# INLINE defaultLiftWith #-}
 
+-- | A more specific 'Run' function used in 'defaultLiftWith'.
+-- This type is equal to 'Run' if:
+--
+-- @'StT' t@ = @'DefaultStT' t\'@
+type RunDefault t t' = forall n b. Monad n => t n b -> n (DefaultStT t' b)
+
 -- | Default definition for the 'restoreT' method that can be used in
 -- the 'MonadTransControl' instance for newtypes wrapping other monad
--- transformers. (See the example at the top of this module).
---
--- Note that:
+-- transformers. (See the example at the top of this module). Note that:
 --
 -- @defaultRestoreT t = t . 'restoreT' . liftM runIdentityT@
 defaultRestoreT :: (Monad m, MonadTransControl n)
                 => (n m a -> t m a)     -- ^ Monad constructor
-                -> m (DefaultStT n a) -> t m a
+                -> (m (DefaultStT n a) -> t m a)
 defaultRestoreT t = t . restoreT . liftM runIdentityT
 {-# INLINE defaultRestoreT #-}
 
@@ -229,7 +231,7 @@ defaultRestoreT t = t . restoreT . liftM runIdentityT
 -- MonadTransControl instances
 --------------------------------------------------------------------------------
 
--- | 'Identity' is used to represent the state of @IdentityT@.
+-- | @type 'StT' 'IdentityT' = 'Identity'@
 instance MonadTransControl IdentityT where
     type StT IdentityT = Identity
     liftWith f = IdentityT $ f $ liftM Identity . runIdentityT
@@ -237,7 +239,7 @@ instance MonadTransControl IdentityT where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | 'Maybe' is used to represent the state of @MaybeT@.
+-- | @type 'StT' 'MaybeT' = 'Maybe'@
 instance MonadTransControl MaybeT where
     type StT MaybeT = Maybe
     liftWith f = MaybeT $ liftM return $ f runMaybeT
@@ -245,7 +247,7 @@ instance MonadTransControl MaybeT where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | 'Either' is used to represent the state of @ErrorT@.
+-- | @type 'StT' ('ErrorT' e) = 'Either' e@
 instance Error e => MonadTransControl (ErrorT e) where
     type StT (ErrorT e) = Either e
     liftWith f = ErrorT $ liftM return $ f runErrorT
@@ -253,7 +255,7 @@ instance Error e => MonadTransControl (ErrorT e) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | A list (@[]@) is used to represent the state of @ListT@.
+-- | @type 'StT' 'ListT' = []@
 instance MonadTransControl ListT where
     type StT ListT = []
     liftWith f = ListT $ liftM return $ f runListT
@@ -261,7 +263,7 @@ instance MonadTransControl ListT where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | 'Identity' is used to represent the state of @ReaderT@.
+-- | @type 'StT' ('ReaderT' r) = 'Identity'@
 instance MonadTransControl (ReaderT r) where
     type StT (ReaderT r) = Identity
     liftWith f = ReaderT $ \r -> f $ \t -> liftM Identity $ runReaderT t r
@@ -269,7 +271,7 @@ instance MonadTransControl (ReaderT r) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StState' s@ is used to represent the state of @StateT s@.
+-- | @type 'StT' ('StateT' s) = 'StState' s@
 instance MonadTransControl (StateT s) where
     type StT (StateT s) = StState s
     liftWith f = StateT $ \s ->
@@ -279,7 +281,7 @@ instance MonadTransControl (StateT s) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StState' s@ is used to represent the state of @StateT s@.
+-- | @type 'StT' ('Strict.StateT' s) = 'StState' s@
 instance MonadTransControl (Strict.StateT s) where
     type StT (Strict.StateT s) = StState s
     liftWith f = Strict.StateT $ \s ->
@@ -289,7 +291,7 @@ instance MonadTransControl (Strict.StateT s) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StState' s@ is used to represent the state of @WriterT s@.
+-- | @type 'StT' ('WriterT' w) = 'StState' w@
 instance Monoid w => MonadTransControl (WriterT w) where
     type StT (WriterT w) = StState w
     liftWith f = WriterT $ liftM (\x -> (x, mempty))
@@ -298,7 +300,7 @@ instance Monoid w => MonadTransControl (WriterT w) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StState' s@ is used to represent the state of @WriterT s@.
+-- | @type 'StT' ('Strict.WriterT' w) = 'StState' w@
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
     type StT (Strict.WriterT w) = StState w
     liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
@@ -307,7 +309,7 @@ instance Monoid w => MonadTransControl (Strict.WriterT w) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StRWS' s@ is used to represent the state of @RWST s@.
+-- | @type 'StT' ('RWST' r w s) = 'StRWS' r w s@
 instance Monoid w => MonadTransControl (RWST r w s) where
     type StT (RWST r w s) = StRWS r w s
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
@@ -316,7 +318,7 @@ instance Monoid w => MonadTransControl (RWST r w s) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @'StRWS' s@ is used to represent the state of @RWST s@.
+-- | @type 'StT' ('Strict.RWST' r w s) = 'StRWS' r w s@
 instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     type StT (Strict.RWST r w s) = StRWS r w s
     liftWith f =
@@ -446,9 +448,7 @@ defaultLiftBaseWith f = liftWith $ \run ->
                             f $ liftM Compose . runInBase . run
 {-# INLINE defaultLiftBaseWith #-}
 
--- | Default definition for the 'restoreM' method.
---
--- Note that:
+-- | Default definition for the 'restoreM' method. Note that:
 --
 -- @defaultRestoreM unStM = 'restoreT' . 'restoreM' . 'getCompose'@
 defaultRestoreM :: ( MonadTransControl t
