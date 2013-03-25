@@ -310,7 +310,7 @@ instance Monoid w => MonadTransControl (Strict.WriterT w) where
 instance Monoid w => MonadTransControl (RWST r w s) where
     type StT (RWST r w s) = (,,) s w
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                     (f $ \t -> liftM toStRWS $ runRWST t r s)
+                                      (f $ \t -> liftM toStRWS $ runRWST t r s)
     restoreT mSt = RWST $ \_ _ -> liftM fromStRWS mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
@@ -320,7 +320,7 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     type StT (Strict.RWST r w s) = (,,) s w
     liftWith f =
         Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                   (f $ \t -> liftM toStRWS $ Strict.runRWST t r s)
+                                    (f $ \t -> liftM toStRWS $ Strict.runRWST t r s)
     restoreT mSt = Strict.RWST $ \_ _ -> liftM fromStRWS mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
