@@ -43,10 +43,6 @@ module Control.Monad.Trans.Control
     , liftBaseOp, liftBaseOp_
 
     , liftBaseDiscard
-
-      -- * State types
-    , StState(..)
-    , StRWS(..)
     ) where
 
 
@@ -56,12 +52,12 @@ module Control.Monad.Trans.Control
 
 -- from base:
 import Data.Function ( ($), (.), const )
-import Data.Functor  ( Functor, fmap )
 import Data.Monoid   ( Monoid, mempty )
 import Control.Monad ( Monad, (>>=), return, liftM )
 import System.IO     ( IO )
 import Data.Maybe    ( Maybe )
 import Data.Either   ( Either )
+import Data.Tuple    ( swap )
 
 #if MIN_VERSION_base(4,3,0)
 import GHC.Conc.Sync ( STM )
@@ -97,6 +93,7 @@ import Control.Monad.Base ( MonadBase )
 #if MIN_VERSION_base(4,3,0)
 import Control.Monad ( void )
 #else
+import Data.Functor  ( Functor, fmap )
 void :: Functor f => f a -> f ()
 void = fmap (const ())
 #endif
@@ -198,7 +195,7 @@ type DefaultStT n = IdentityT (StT n)
 --
 -- @defaultLiftWith t unT = \\f ->
 --    t $ 'liftWith' $ \\run ->
---          f $ liftM IdentityT . run . unT
+--          f $ liftM 'IdentityT' . run . unT
 -- @
 defaultLiftWith :: (Monad m, MonadTransControl t')
                 => (forall b.   t' m b -> t  m b) -- ^ Monad constructor
@@ -212,14 +209,14 @@ defaultLiftWith t unT = \f ->
 -- | A more specific 'Run' function used in 'defaultLiftWith'.
 -- This type is equal to 'Run' if:
 --
--- @'StT' t@ = @'DefaultStT' t\'@
+-- @type 'StT' t = 'DefaultStT' t\'@
 type RunDefault t t' = forall n b. Monad n => t n b -> n (DefaultStT t' b)
 
 -- | Default definition for the 'restoreT' method that can be used in
 -- the 'MonadTransControl' instance for newtypes wrapping other monad
 -- transformers. (See the example at the top of this module). Note that:
 --
--- @defaultRestoreT t = t . 'restoreT' . liftM runIdentityT@
+-- @defaultRestoreT t = t . 'restoreT' . liftM 'runIdentityT'@
 defaultRestoreT :: (Monad m, MonadTransControl n)
                 => (n m a -> t m a)     -- ^ Monad constructor
                 -> (m (DefaultStT n a) -> t m a)
@@ -271,81 +268,70 @@ instance MonadTransControl (ReaderT r) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('StateT' s) = 'StState' s@
+-- | @type 'StT' ('StateT' s) = (,) s@
 instance MonadTransControl (StateT s) where
-    type StT (StateT s) = StState s
+    type StT (StateT s) = (,) s
     liftWith f = StateT $ \s ->
                    liftM (\x -> (x, s))
-                         (f $ \t -> liftM StState $ runStateT t s)
-    restoreT = StateT . const . liftM unStState
+                         (f $ \t -> liftM swap $ runStateT t s)
+    restoreT = StateT . const . liftM swap
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('Strict.StateT' s) = 'StState' s@
+-- | @type 'StT' ('Strict.StateT' s) = (,) s@
 instance MonadTransControl (Strict.StateT s) where
-    type StT (Strict.StateT s) = StState s
+    type StT (Strict.StateT s) = (,) s
     liftWith f = Strict.StateT $ \s ->
                    liftM (\x -> (x, s))
-                         (f $ \t -> liftM StState $ Strict.runStateT t s)
-    restoreT = Strict.StateT . const . liftM unStState
+                         (f $ \t -> liftM swap $ Strict.runStateT t s)
+    restoreT = Strict.StateT . const . liftM swap
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('WriterT' w) = 'StState' w@
+-- | @type 'StT' ('WriterT' w) = (,) w@
 instance Monoid w => MonadTransControl (WriterT w) where
-    type StT (WriterT w) = StState w
+    type StT (WriterT w) = (,) w
     liftWith f = WriterT $ liftM (\x -> (x, mempty))
-                                 (f $ liftM StState . runWriterT)
-    restoreT = WriterT . liftM unStState
+                                 (f $ liftM swap . runWriterT)
+    restoreT = WriterT . liftM swap
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('Strict.WriterT' w) = 'StState' w@
+-- | @type 'StT' ('Strict.WriterT' w) = (,) w@
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
-    type StT (Strict.WriterT w) = StState w
+    type StT (Strict.WriterT w) = (,) w
     liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
-                                        (f $ liftM StState . Strict.runWriterT)
-    restoreT = Strict.WriterT . liftM unStState
+                                        (f $ liftM swap . Strict.runWriterT)
+    restoreT = Strict.WriterT . liftM swap
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('RWST' r w s) = 'StRWS' r w s@
+-- | @type 'StT' ('RWST' r w s) = (,,) s w@
 instance Monoid w => MonadTransControl (RWST r w s) where
-    type StT (RWST r w s) = StRWS r w s
+    type StT (RWST r w s) = (,,) s w
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                     (f $ \t -> liftM StRWS $ runRWST t r s)
-    restoreT mSt = RWST $ \_ _ -> liftM unStRWS mSt
+                                     (f $ \t -> liftM toStRWS $ runRWST t r s)
+    restoreT mSt = RWST $ \_ _ -> liftM fromStRWS mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('Strict.RWST' r w s) = 'StRWS' r w s@
+-- | @type 'StT' ('Strict.RWST' r w s) = (,,) s w@
 instance Monoid w => MonadTransControl (Strict.RWST r w s) where
-    type StT (Strict.RWST r w s) = StRWS r w s
+    type StT (Strict.RWST r w s) = (,,) s w
     liftWith f =
         Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                   (f $ \t -> liftM StRWS $ Strict.runRWST t r s)
-    restoreT mSt = Strict.RWST $ \_ _ -> liftM unStRWS mSt
+                                   (f $ \t -> liftM toStRWS $ Strict.runRWST t r s)
+    restoreT mSt = Strict.RWST $ \_ _ -> liftM fromStRWS mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
+toStRWS :: (a, s, w) -> (s, w, a)
+toStRWS (x, s, w) = (s, w, x)
+{-# INLINE toStRWS #-}
 
---------------------------------------------------------------------------------
--- State types
---------------------------------------------------------------------------------
-
--- | This type is used to represent the state ('StT') of the lazy and
--- strict 'StateT' and 'WriterT' monad transformers.
-newtype StState s a = StState {unStState :: (a, s)}
-
-instance Functor (StState s) where
-    fmap f (StState (x, y)) = StState (f x, y)
-
--- | THis types is used to represent the state ('StT') of the lazy and
--- strict 'RWST' monad transformers.
-newtype StRWS r w s a = StRWS {unStRWS :: (a, s, w)}
-
-instance Functor (StRWS r w s) where
-    fmap f (StRWS (x, s, w)) = StRWS (f x, s, w)
+fromStRWS :: (s, w, a) -> (a, s, w)
+fromStRWS (s, w, x) = (x, s, w)
+{-# INLINE fromStRWS #-}
 
 
 --------------------------------------------------------------------------------
