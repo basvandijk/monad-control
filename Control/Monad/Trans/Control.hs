@@ -29,7 +29,7 @@ module Control.Monad.Trans.Control
       MonadTransControl(..), Run
 
       -- ** Defaults for MonadTransControl
-    , DefaultStT, defaultLiftWith, RunDefault, defaultRestoreT
+    , defaultLiftWith, RunDefault, defaultRestoreT
 
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
@@ -113,7 +113,7 @@ void = fmap (const ())
 --              TypeFamilies,
 --              FlexibleInstances,
 --              MultiParamTypeClasses,
---              UndecidableInstances -- Needed for the MonadBase instance
+--              UndecidableInstances
 --   \#-}
 --
 -- import Control.Applicative
@@ -123,13 +123,10 @@ void = fmap (const ())
 --import Control.Monad.Trans.State
 --
 -- newtype CounterT m a = CounterT {unCounterT :: StateT Int m a}
---    deriving (Functor, Applicative, Monad, MonadTrans)
---
--- instance MonadBase b m => MonadBase b (CounterT m) where
---    liftBase = liftBaseDefault
+--    deriving (Functor, Applicative, Monad, MonadTrans, MonadBase b)
 --
 -- instance 'MonadTransControl' CounterT where
---    type StT CounterT = 'DefaultStT' (StateT Int)
+--    type StT CounterT = 'StT' (StateT Int)
 --    liftWith = 'defaultLiftWith' CounterT unCounterT
 --    restoreT = 'defaultRestoreT' CounterT
 --
@@ -184,43 +181,36 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 -- Defaults for MonadTransControl
 --------------------------------------------------------------------------------
 
--- | Default definition for the 'StT' associated type synonym that can
--- be used in the 'MonadTransControl' instance for newtypes wrapping
--- other monad transformers. (See the example at the top of this module).
-type DefaultStT n = IdentityT (StT n)
-
 -- | Default definition for the 'liftWith' method that can be used in
 -- the 'MonadTransControl' instance for newtypes wrapping other monad
 -- transformers. (See the example at the top of this module). Note that:
 --
 -- @defaultLiftWith t unT = \\f ->
 --    t $ 'liftWith' $ \\run ->
---          f $ liftM 'IdentityT' . run . unT
+--          f $ run . unT
 -- @
 defaultLiftWith :: (Monad m, MonadTransControl t')
                 => (forall b.   t' m b -> t  m b) -- ^ Monad constructor
                 -> (forall o b. t  o b -> t' o b) -- ^ Monad deconstructor
                 -> ((RunDefault t t' -> m a) -> t m a)
-defaultLiftWith t unT = \f ->
-    t $ liftWith $ \run ->
-          f $ liftM IdentityT . run . unT
+defaultLiftWith t unT = \f -> t $ liftWith $ \run -> f $ run . unT
 {-# INLINE defaultLiftWith #-}
 
 -- | A more specific 'Run' function used in 'defaultLiftWith'.
 -- This type is equal to 'Run' if:
 --
--- @type 'StT' t = 'DefaultStT' t\'@
-type RunDefault t t' = forall n b. Monad n => t n b -> n (DefaultStT t' b)
+-- @type 'StT' t = 'StT' t\'@
+type RunDefault t t' = forall n b. Monad n => t n b -> n (StT t' b)
 
 -- | Default definition for the 'restoreT' method that can be used in
 -- the 'MonadTransControl' instance for newtypes wrapping other monad
 -- transformers. (See the example at the top of this module). Note that:
 --
--- @defaultRestoreT t = t . 'restoreT' . liftM 'runIdentityT'@
+-- @defaultRestoreT t = t . 'restoreT'@
 defaultRestoreT :: (Monad m, MonadTransControl n)
                 => (n m a -> t m a)     -- ^ Monad constructor
-                -> (m (DefaultStT n a) -> t m a)
-defaultRestoreT t = t . restoreT . liftM runIdentityT
+                -> (m (StT n a) -> t m a)
+defaultRestoreT t = t . restoreT
 {-# INLINE defaultRestoreT #-}
 
 
