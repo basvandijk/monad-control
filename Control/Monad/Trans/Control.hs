@@ -46,6 +46,7 @@ module Control.Monad.Trans.Control
 
       -- * State types
     , StState(..)
+    , StWriter(..)
     , StRWS(..)
     ) where
 
@@ -282,16 +283,16 @@ instance MonadTransControl (Strict.StateT s) where
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('WriterT' w) = 'StState' w@
+-- | @type 'StT' ('WriterT' w) = 'StWriter' w@
 instance Monoid w => MonadTransControl (WriterT w) where
-    type StT (WriterT w) = StState w
+    type StT (WriterT w) = StWriter w
     liftWith f = WriterT $ liftM (\x -> (x, mempty))
-                                 (f $ liftM StState . runWriterT)
-    restoreT = WriterT . liftM unStState
+                                 (f $ liftM StWriter . runWriterT)
+    restoreT = WriterT . liftM unStWriter
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
--- | @type 'StT' ('Strict.WriterT' w) = 'StState' w@
+-- | @type 'StT' ('Strict.WriterT' w) = 'StWriter' w@
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
     type StT (Strict.WriterT w) = StState w
     liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
@@ -325,11 +326,18 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 -----------------------------------------------------------------------------
 
 -- | This type is used to represent the state ('StT') of the lazy and
--- strict 'StateT' and 'WriterT' monad transformers.
+-- strict 'StateT' monad transformers.
 newtype StState s a = StState {unStState :: (a, s)}
 
 instance Functor (StState s) where
     fmap f (StState (x, y)) = StState (f x, y)
+
+-- | This type is used to represent the state ('StT') of the lazy and
+-- strict 'WriterT' monad transformers.
+newtype StWriter s a = StWriter {unStWriter :: (a, s)}
+
+instance Functor (StWriter s) where
+    fmap f (StWriter (x, y)) = StWriter (f x, y)
 
 -- | This type is used to represent the state ('StT') of the lazy and
 -- strict 'RWST' monad transformers.
