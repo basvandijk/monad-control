@@ -4,6 +4,7 @@
            , TypeFamilies
            , FunctionalDependencies
            , FlexibleInstances
+           , FlexibleContexts
            , UndecidableInstances
            , MultiParamTypeClasses
            , TypeOperators
@@ -37,12 +38,17 @@ module Control.Monad.Trans.Control
       -- ** Defaults for MonadBaseControl
     , DefaultStM, defaultLiftBaseWith, defaultRestoreM
 
+     -- * Monadic state deconstruction
+    , UnwrapSt (..), RunInBaseUnwrap
+
       -- * Utility functions
     , control
 
     , liftBaseOp, liftBaseOp_
 
     , liftBaseDiscard
+
+    , controlUnwrap
 
       -- * State types
     , StState(..)
@@ -114,14 +120,14 @@ void = fmap (const ())
 -- 'MonadTransControl' and 'MonadBaseControl':
 --
 -- @
--- {-\# LANGUAGE GeneralizedNewtypeDeriving,
+--{-\# LANGUAGE GeneralizedNewtypeDeriving,
 --              TypeFamilies,
 --              FlexibleInstances,
 --              MultiParamTypeClasses,
 --              UndecidableInstances
 --   \#-}
 --
--- import Control.Applicative
+--import Control.Applicative
 --import Control.Monad.Base
 --import Control.Monad.Trans.Class
 --import Control.Monad.Trans.Control
@@ -490,6 +496,71 @@ TRANS_CTX(Monoid w,        RWST r w s)
 
 
 --------------------------------------------------------------------------------
+-- * Monadic state deconstruction
+--------------------------------------------------------------------------------
+
+-- | Use this class to retrieve the value hidden inside the monadic state.
+-- This is useful when integrating monad transformers with callback-based APIs,
+-- e.g. GUI frameworks.
+--
+-- This class only works for simple monads, which hold one value at all times.
+-- e.g. 'ReaderT', 'WriterT', 'StateT', 'RWST'.
+--
+-- Example:
+--
+-- @
+--import Control.Concurrent.Async
+--import Control.Monad.Trans.Control
+--import Control.Monad.Trans.Reader
+--
+--data DBHandle = DBHandle
+--
+--type DBMonad = ReaderT DBHandle IO
+--
+--withDB :: DBMonad a -> IO a
+--withDB m = runReaderT m DBHandle
+--
+--doSomething1 :: DBMonad Bool
+--doSomething1 = return True
+--
+--doSomething2 :: DBMonad Int
+--doSomething2 = return 3
+--
+--main :: IO ()
+--main = do
+--  withDB \$ 'liftBaseWith' \$ \\runInBase -\> do
+--    async1 \<- async \$ 'fmap' 'unwrapSt' (runInBase doSomething1)
+--    async2 \<- async \$ 'fmap' 'unwrapSt' (runInBase doSomething2)
+--    res \<- waitEither async1 async2
+--    print res
+-- @
+class UnwrapSt st where
+    unwrapSt :: st a -> a
+
+instance UnwrapSt Identity where
+    unwrapSt = runIdentity
+    {-# INLINE unwrapSt #-}
+
+instance UnwrapSt (StState s) where
+    unwrapSt (StState (a,_)) = a
+    {-# INLINE unwrapSt #-}
+
+instance UnwrapSt (StWriter w) where
+    unwrapSt (StWriter (a,_)) = a
+    {-# INLINE unwrapSt #-}
+
+instance UnwrapSt (StRWS w s) where
+    unwrapSt (StRWS (a,_,_)) = a
+    {-# INLINE unwrapSt #-}
+
+instance (UnwrapSt f, UnwrapSt g) => UnwrapSt (Compose f g) where
+    unwrapSt = unwrapSt . unwrapSt . getCompose
+    {-# INLINE unwrapSt #-}
+
+type RunInBaseUnwrap m b = forall a. UnwrapSt (StM m) => m a -> b a
+
+
+--------------------------------------------------------------------------------
 -- * Utility functions
 --------------------------------------------------------------------------------
 
@@ -555,3 +626,12 @@ liftBaseOp_ f = \m -> control $ \runInBase -> f $ runInBase m
 liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> (m () -> m a)
 liftBaseDiscard f = \m -> liftBaseWith $ \runInBase -> f $ void $ runInBase m
 {-# INLINE liftBaseDiscard #-}
+
+-- | An often used composition:
+--
+-- @controlUnwrap f = 'liftBaseWith' \$ \\runInBase -\> f ('fmap' 'unwrapSt' . runInBase)@
+--
+-- All the side-effects in @m@ are discarded. @f@ is run only for its
+-- side-effects in the base monad @b@.
+controlUnwrap :: MonadBaseControl b m => (RunInBaseUnwrap m b -> b a) -> m a
+controlUnwrap f = liftBaseWith $ \runInBase -> f (fmap unwrapSt . runInBase)
