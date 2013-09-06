@@ -89,6 +89,9 @@ import Control.Monad.Trans.State    ( StateT   (StateT),    runStateT )
 import Control.Monad.Trans.Writer   ( WriterT  (WriterT),   runWriterT )
 import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
 
+-- from either:
+import Control.Monad.Trans.Either   ( EitherT  (EitherT),   runEitherT )
+
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
 import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT), runWriterT )
@@ -206,6 +209,13 @@ instance Error e ⇒ MonadTransControl (ErrorT e) where
     newtype StT (ErrorT e) a = StError {unStError ∷ Either e a}
     liftWith f = ErrorT $ liftM return $ f $ liftM StError ∘ runErrorT
     restoreT = ErrorT ∘ liftM unStError
+    {-# INLINE liftWith #-}
+    {-# INLINE restoreT #-}
+
+instance MonadTransControl (EitherT e) where
+    newtype StT (EitherT e) a = StEither {unStEither ∷ Either e a}
+    liftWith f = EitherT $ liftM return $ f $ liftM StEither ∘ runEitherT
+    restoreT = EitherT ∘ liftM unStEither
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
@@ -426,6 +436,7 @@ TRANS(ListT,           StMList,   unStMList)
 TRANS(ReaderT r,       StMReader, unStMReader)
 TRANS(Strict.StateT s, StMStateS, unStMStateS)
 TRANS(       StateT s, StMState,  unStMState)
+TRANS(EitherT e,       StMEither, unStMEither)
 
 TRANS_CTX(Error e,         ErrorT e,   StMError,   unStMError)
 TRANS_CTX(Monoid w, Strict.WriterT w,  StMWriterS, unStMWriterS)
