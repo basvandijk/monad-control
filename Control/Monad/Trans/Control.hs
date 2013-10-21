@@ -6,8 +6,7 @@
            , FunctionalDependencies
            , FlexibleInstances
            , UndecidableInstances
-           , MultiParamTypeClasses
-  #-}
+           , MultiParamTypeClasses #-}
 
 #if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Trustworthy #-}
