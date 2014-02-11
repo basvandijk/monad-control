@@ -19,13 +19,6 @@ License     :  BSD-style
 
 Maintainer  :  Bas van Dijk <v.dijk.bas@gmail.com>
 Stability   :  experimental
-
-(TODO: It would be nicer if the associated /data types/ 'StT' and 'StM' were
-associated /type synonyms/ instead. This would simplify a lot of code and could
-make some definitions more efficient because there'll be no need to wrap the
-monadic state in a data type. Unfortunately GHC has a bug which prevents this:
-<http://hackage.haskell.org/trac/ghc/ticket/5595>. I will switch to associated
-type synonyms when that bug is fixed.)
 -}
 
 module Control.Monad.Trans.Control
@@ -153,7 +146,8 @@ type Run t = ∀ n b. Monad n ⇒ t n b → n (StT t b)
 -- Following functions can be used to define 'MonadTransControl' instances for
 -- newtypes.
 --
--- @{-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
+-- @
+-- {-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
 --
 -- newtype CounterT m a = CounterT {unCounterT :: StateT Int m a}
 --   deriving (Monad, MonadTrans)

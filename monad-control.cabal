@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             0.3.2.2
+Version:             0.3.2.3
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 License:             BSD3
 License-file:        LICENSE
@@ -26,11 +26,6 @@ Description:
   library. The main difference is that this package provides CPS style operators
   and exploits the @RankNTypes@ and @TypeFamilies@ language extensions to
   simplify and speedup most definitions.
-  .
-  The following @criterion@ based benchmark shows that @monad-control@ is on
-  average about 99% faster than @monad-peel@:
-  .
-  @git clone <https://github.com/basvandijk/bench-monad-peel-control>@
 
 extra-source-files:  README.markdown, NEWS
 
