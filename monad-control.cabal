@@ -52,7 +52,6 @@ Library
   Exposed-modules: Control.Monad.Trans.Control
 
   Build-depends: base                 >= 3     && < 5
-               , base-unicode-symbols >= 0.1.1 && < 0.3
                , transformers         >= 0.2   && < 0.4
                , transformers-base    >= 0.4.1 && < 0.5
 
