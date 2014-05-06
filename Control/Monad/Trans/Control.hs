@@ -11,6 +11,11 @@
 {-# LANGUAGE Trustworthy #-}
 #endif
 
+#if MIN_VERSION_transformers(0,4,0)
+-- Hide warnings for the deprecated ErrorT transformer:
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+#endif
+
 {- |
 Module      :  Control.Monad.Trans.Control
 Copyright   :  Bas van Dijk, Anders Kaseorg
@@ -76,6 +81,10 @@ import Control.Monad.Trans.Reader   ( ReaderT  (ReaderT),   runReaderT )
 import Control.Monad.Trans.State    ( StateT   (StateT),    runStateT )
 import Control.Monad.Trans.Writer   ( WriterT  (WriterT),   runWriterT )
 import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
+
+#if MIN_VERSION_transformers(0,4,0)
+import Control.Monad.Trans.Except   ( ExceptT  (ExceptT),   runExceptT )
+#endif
 
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
@@ -198,6 +207,15 @@ instance Error e => MonadTransControl (ErrorT e) where
     restoreT = ErrorT . liftM unStError
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
+
+#if MIN_VERSION_transformers(0,4,0)
+instance MonadTransControl (ExceptT e) where
+    newtype StT (ExceptT e) a = StExcept {unStExcept :: Either e a}
+    liftWith f = ExceptT $ liftM return $ f $ liftM StExcept . runExceptT
+    restoreT = ExceptT . liftM unStExcept
+    {-# INLINE liftWith #-}
+    {-# INLINE restoreT #-}
+#endif
 
 instance MonadTransControl ListT where
     newtype StT ListT a = StList {unStList :: [a]}
@@ -416,6 +434,10 @@ TRANS(ListT,           StMList,   unStMList)
 TRANS(ReaderT r,       StMReader, unStMReader)
 TRANS(Strict.StateT s, StMStateS, unStMStateS)
 TRANS(       StateT s, StMState,  unStMState)
+
+#if MIN_VERSION_transformers(0,4,0)
+TRANS(ExceptT e,       StMExcept, unStMExcept)
+#endif
 
 TRANS_CTX(Error e,         ErrorT e,   StMError,   unStMError)
 TRANS_CTX(Monoid w, Strict.WriterT w,  StMWriterS, unStMWriterS)
