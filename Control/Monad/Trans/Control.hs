@@ -31,14 +31,14 @@ module Control.Monad.Trans.Control
 
       -- ** Defaults for MonadTransControl
       -- $MonadTransControlDefaults
-    , defaultLiftWith, defaultRestoreT
+    , RunDefault, defaultLiftWith, defaultRestoreT
 
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
       -- ** Defaults for MonadBaseControl
       -- $MonadBaseControlDefaults
-    , ComposeSt, defaultLiftBaseWith, defaultRestoreM
+    , ComposeSt, RunInBaseDefault, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
     , control
@@ -103,13 +103,15 @@ void :: Functor f => f a -> f ()
 void = fmap (const ())
 #endif
 
+import Prelude (id)
+
 --------------------------------------------------------------------------------
 -- MonadTransControl type class
 --------------------------------------------------------------------------------
 
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
-  data StT t :: * -> *
+  type StT t a :: *
 
   -- | @liftWith@ is similar to 'lift' in that it lifts a computation from
   -- the argument monad to the constructed monad.
@@ -158,28 +160,27 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 --   deriving (Monad, MonadTrans)
 --
 -- instance MonadTransControl CounterT where
---     newtype StT CounterT a = StCounter {unStCounter :: StT (StateT Int) a}
---     liftWith = 'defaultLiftWith' CounterT unCounterT StCounter
---     restoreT = 'defaultRestoreT' CounterT unStCounter
+--     type StT CounterT a = StT (StateT Int) a
+--     liftWith = 'defaultLiftWith' CounterT unCounterT
+--     restoreT = 'defaultRestoreT' CounterT
 -- @
+
+type RunDefault t t' = forall n b. Monad n => t n b -> n (StT t' b)
 
 -- | Default definition for the 'liftWith' method.
 defaultLiftWith :: (Monad m, MonadTransControl n)
                 => (forall b.   n m b -> t m b)     -- ^ Monad constructor
                 -> (forall o b. t o b -> n o b)     -- ^ Monad deconstructor
-                -> (forall b.   StT n b -> StT t b) -- ^ 'StT' constructor
-                -> (Run t -> m a)
+                -> (RunDefault t n -> m a)
                 -> t m a
-defaultLiftWith t unT stT = \f -> t $ liftWith $ \run ->
-                                        f $ liftM stT . run . unT
+defaultLiftWith t unT = \f -> t $ liftWith $ \run -> f $ run . unT
 {-# INLINE defaultLiftWith #-}
 
 defaultRestoreT :: (Monad m, MonadTransControl n)
                 => (n m a -> t m a)     -- ^ Monad constructor
-                -> (StT t a -> StT n a) -- ^ 'StT' deconstructor
-                -> m (StT t a)
+                -> m (StT n a)
                 -> t m a
-defaultRestoreT t unStT = t . restoreT . liftM unStT
+defaultRestoreT t = t . restoreT
 {-# INLINE defaultRestoreT #-}
 
 
@@ -188,97 +189,97 @@ defaultRestoreT t unStT = t . restoreT . liftM unStT
 --------------------------------------------------------------------------------
 
 instance MonadTransControl IdentityT where
-    newtype StT IdentityT a = StId {unStId :: a}
-    liftWith f = IdentityT $ f $ liftM StId . runIdentityT
-    restoreT = IdentityT . liftM unStId
+    type StT IdentityT a = a
+    liftWith f = IdentityT $ f $ runIdentityT
+    restoreT = IdentityT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl MaybeT where
-    newtype StT MaybeT a = StMaybe {unStMaybe :: Maybe a}
-    liftWith f = MaybeT $ liftM return $ f $ liftM StMaybe . runMaybeT
-    restoreT = MaybeT . liftM unStMaybe
+    type StT MaybeT a = Maybe a
+    liftWith f = MaybeT $ liftM return $ f $ runMaybeT
+    restoreT = MaybeT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Error e => MonadTransControl (ErrorT e) where
-    newtype StT (ErrorT e) a = StError {unStError :: Either e a}
-    liftWith f = ErrorT $ liftM return $ f $ liftM StError . runErrorT
-    restoreT = ErrorT . liftM unStError
+    type StT (ErrorT e) a = Either e a
+    liftWith f = ErrorT $ liftM return $ f $ runErrorT
+    restoreT = ErrorT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 #if MIN_VERSION_transformers(0,4,0)
 instance MonadTransControl (ExceptT e) where
-    newtype StT (ExceptT e) a = StExcept {unStExcept :: Either e a}
-    liftWith f = ExceptT $ liftM return $ f $ liftM StExcept . runExceptT
-    restoreT = ExceptT . liftM unStExcept
+    type StT (ExceptT e) a = Either e a
+    liftWith f = ExceptT $ liftM return $ f $ runExceptT
+    restoreT = ExceptT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 #endif
 
 instance MonadTransControl ListT where
-    newtype StT ListT a = StList {unStList :: [a]}
-    liftWith f = ListT $ liftM return $ f $ liftM StList . runListT
-    restoreT = ListT . liftM unStList
+    type StT ListT a = [a]
+    liftWith f = ListT $ liftM return $ f $ runListT
+    restoreT = ListT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (ReaderT r) where
-    newtype StT (ReaderT r) a = StReader {unStReader :: a}
-    liftWith f = ReaderT $ \r -> f $ \t -> liftM StReader $ runReaderT t r
-    restoreT = ReaderT . const . liftM unStReader
+    type StT (ReaderT r) a = a
+    liftWith f = ReaderT $ \r -> f $ \t -> runReaderT t r
+    restoreT = ReaderT . const
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (StateT s) where
-    newtype StT (StateT s) a = StState {unStState :: (a, s)}
+    type StT (StateT s) a = (a, s)
     liftWith f = StateT $ \s ->
                    liftM (\x -> (x, s))
-                         (f $ \t -> liftM StState $ runStateT t s)
-    restoreT = StateT . const . liftM unStState
+                         (f $ \t -> runStateT t s)
+    restoreT = StateT . const
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance MonadTransControl (Strict.StateT s) where
-    newtype StT (Strict.StateT s) a = StState' {unStState' ::  (a, s)}
+    type StT (Strict.StateT s) a = (a, s)
     liftWith f = Strict.StateT $ \s ->
                    liftM (\x -> (x, s))
-                         (f $ \t -> liftM StState' $ Strict.runStateT t s)
-    restoreT = Strict.StateT . const . liftM unStState'
+                         (f $ \t -> Strict.runStateT t s)
+    restoreT = Strict.StateT . const
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Monoid w => MonadTransControl (WriterT w) where
-    newtype StT (WriterT w) a = StWriter {unStWriter :: (a, w)}
+    type StT (WriterT w) a = (a, w)
     liftWith f = WriterT $ liftM (\x -> (x, mempty))
-                                 (f $ liftM StWriter . runWriterT)
-    restoreT = WriterT . liftM unStWriter
+                                 (f $ runWriterT)
+    restoreT = WriterT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
-    newtype StT (Strict.WriterT w) a = StWriter' {unStWriter' :: (a, w)}
+    type StT (Strict.WriterT w) a = (a, w)
     liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
-                                        (f $ liftM StWriter' . Strict.runWriterT)
-    restoreT = Strict.WriterT . liftM unStWriter'
+                                        (f $ Strict.runWriterT)
+    restoreT = Strict.WriterT
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Monoid w => MonadTransControl (RWST r w s) where
-    newtype StT (RWST r w s) a = StRWS {unStRWS :: (a, s, w)}
+    type StT (RWST r w s) a = (a, s, w)
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                     (f $ \t -> liftM StRWS $ runRWST t r s)
-    restoreT mSt = RWST $ \_ _ -> liftM unStRWS mSt
+                                     (f $ \t -> runRWST t r s)
+    restoreT mSt = RWST $ \_ _ -> mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
 instance Monoid w => MonadTransControl (Strict.RWST r w s) where
-    newtype StT (Strict.RWST r w s) a = StRWS' {unStRWS' ::  (a, s, w)}
+    type StT (Strict.RWST r w s) a = (a, s, w)
     liftWith f =
         Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                   (f $ \t -> liftM StRWS' $ Strict.runRWST t r s)
-    restoreT mSt = Strict.RWST $ \_ _ -> liftM unStRWS' mSt
+                                   (f $ \t -> Strict.runRWST t r s)
+    restoreT mSt = Strict.RWST $ \_ _ -> mSt
     {-# INLINE liftWith #-}
     {-# INLINE restoreT #-}
 
@@ -289,7 +290,7 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 
 class MonadBase b m => MonadBaseControl b m | m -> b where
     -- | Monadic state of @m@.
-    data StM m :: * -> *
+    type StM m a :: *
 
     -- | @liftBaseWith@ is similar to 'liftIO' and 'liftBase' in that it
     -- lifts a base computation to the constructed monad.
@@ -327,28 +328,28 @@ type RunInBase m b = forall a. m a -> b (StM m a)
 -- MonadBaseControl instances for all monads in the base library
 --------------------------------------------------------------------------------
 
-#define BASE(M, ST)                       \
+#define BASE(M)                           \
 instance MonadBaseControl (M) (M) where { \
-    newtype StM (M) a = ST a;             \
-    liftBaseWith f = f $ liftM ST;        \
-    restoreM (ST x) = return x;           \
+    type StM (M) a = a;                   \
+    liftBaseWith f = f id;                \
+    restoreM = return;                    \
     {-# INLINE liftBaseWith #-};          \
     {-# INLINE restoreM #-}}
 
-BASE(IO,          StIO)
-BASE(Maybe,       St)
-BASE(Either e,    StE)
-BASE([],          StL)
-BASE((->) r,       StF)
-BASE(Identity,    StI)
+BASE(IO)
+BASE(Maybe)
+BASE(Either e)
+BASE([])
+BASE((->) r)
+BASE(Identity)
 
 #if MIN_VERSION_base(4,3,0)
-BASE(STM,         StSTM)
+BASE(STM)
 #endif
 
 #if MIN_VERSION_base(4,4,0) || defined(INSTANCE_ST)
-BASE(Strict.ST s, StSTS)
-BASE(       ST s, StST)
+BASE(Strict.ST s)
+BASE(       ST s)
 #endif
 
 #undef BASE
@@ -365,18 +366,18 @@ BASE(       ST s, StST)
 --
 -- @
 -- instance MonadBaseControl b m => MonadBaseControl b (T m) where
---     newtype StM (T m) a = StMT {unStMT :: 'ComposeSt' T m a}
---     liftBaseWith = 'defaultLiftBaseWith' StMT
---     restoreM     = 'defaultRestoreM'   unStMT
+--     type StM (T m) a = 'ComposeSt' T m a
+--     liftBaseWith     = 'defaultLiftBaseWith'
+--     restoreM         = 'defaultRestoreM'
 -- @
 --
 -- Defining an instance for a base monad @B@ is equally straightforward:
 --
 -- @
 -- instance MonadBaseControl B B where
---     newtype StM B a = StMB {unStMB :: a}
---     liftBaseWith f  = f $ liftM  StMB
---     restoreM        = return . unStMB
+--     type StM B a   = a
+--     liftBaseWith f = f 'id'
+--     restoreM       = 'return'
 -- @
 
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
@@ -384,31 +385,31 @@ BASE(       ST s, StST)
 -- It can be used to define the 'StM' for new 'MonadBaseControl' instances.
 type ComposeSt t m a = StM m (StT t a)
 
+type RunInBaseDefault t m b = forall a. t m a -> b (ComposeSt t m a)
+
 -- | Default defintion for the 'liftBaseWith' method.
 --
 -- Note that it composes a 'liftWith' of @t@ with a 'liftBaseWith' of @m@ to
 -- give a 'liftBaseWith' of @t m@:
 --
 -- @
--- defaultLiftBaseWith stM = \\f -> 'liftWith' $ \\run ->
---                                   'liftBaseWith' $ \\runInBase ->
---                                     f $ liftM stM . runInBase . run
+-- defaultLiftBaseWith = \\f -> 'liftWith' $ \\run ->
+--                               'liftBaseWith' $ \\runInBase ->
+--                                 f $ runInBase . run
 -- @
 defaultLiftBaseWith :: (MonadTransControl t, MonadBaseControl b m)
-                    => (forall c. ComposeSt t m c -> StM (t m) c) -- ^ 'StM' constructor
-                    -> ((RunInBase (t m) b  -> b a) -> t m a)
-defaultLiftBaseWith stM = \f -> liftWith $ \run ->
-                                  liftBaseWith $ \runInBase ->
-                                    f $ liftM stM . runInBase . run
+                    => (RunInBaseDefault t m b -> b a) -> t m a
+defaultLiftBaseWith = \f -> liftWith $ \run ->
+                              liftBaseWith $ \runInBase ->
+                                f $ runInBase . run
 {-# INLINE defaultLiftBaseWith #-}
 
 -- | Default definition for the 'restoreM' method.
 --
 -- Note that: @defaultRestoreM unStM = 'restoreT' . 'restoreM' . unStM@
 defaultRestoreM :: (MonadTransControl t, MonadBaseControl b m)
-                => (StM (t m) a -> ComposeSt t m a)  -- ^ 'StM' deconstructor
-                -> (StM (t m) a -> t m a)
-defaultRestoreM unStM = restoreT . restoreM . unStM
+                => StM m (StT t a) -> t m a
+defaultRestoreM = restoreT . restoreM
 {-# INLINE defaultRestoreM #-}
 
 
@@ -416,34 +417,34 @@ defaultRestoreM unStM = restoreT . restoreM . unStM
 -- MonadBaseControl transformer instances
 --------------------------------------------------------------------------------
 
-#define BODY(T, ST, unST) {                               \
-    newtype StM (T m) a = ST {unST :: ComposeSt (T) m a}; \
-    liftBaseWith = defaultLiftBaseWith ST;                \
-    restoreM     = defaultRestoreM   unST;                \
-    {-# INLINE liftBaseWith #-};                          \
+#define BODY(T) {                         \
+    type StM (T m) a = ComposeSt (T) m a; \
+    liftBaseWith = defaultLiftBaseWith;   \
+    restoreM     = defaultRestoreM;       \
+    {-# INLINE liftBaseWith #-};          \
     {-# INLINE restoreM #-}}
 
-#define TRANS(         T, ST, unST) \
-  instance (     MonadBaseControl b m) => MonadBaseControl b (T m) where BODY(T, ST, unST)
-#define TRANS_CTX(CTX, T, ST, unST) \
-  instance (CTX, MonadBaseControl b m) => MonadBaseControl b (T m) where BODY(T, ST, unST)
+#define TRANS(         T) \
+  instance (     MonadBaseControl b m) => MonadBaseControl b (T m) where BODY(T)
+#define TRANS_CTX(CTX, T) \
+  instance (CTX, MonadBaseControl b m) => MonadBaseControl b (T m) where BODY(T)
 
-TRANS(IdentityT,       StMId,     unStMId)
-TRANS(MaybeT,          StMMaybe,  unStMMaybe)
-TRANS(ListT,           StMList,   unStMList)
-TRANS(ReaderT r,       StMReader, unStMReader)
-TRANS(Strict.StateT s, StMStateS, unStMStateS)
-TRANS(       StateT s, StMState,  unStMState)
+TRANS(IdentityT)
+TRANS(MaybeT)
+TRANS(ListT)
+TRANS(ReaderT r)
+TRANS(Strict.StateT s)
+TRANS(       StateT s)
 
 #if MIN_VERSION_transformers(0,4,0)
-TRANS(ExceptT e,       StMExcept, unStMExcept)
+TRANS(ExceptT e)
 #endif
 
-TRANS_CTX(Error e,         ErrorT e,   StMError,   unStMError)
-TRANS_CTX(Monoid w, Strict.WriterT w,  StMWriterS, unStMWriterS)
-TRANS_CTX(Monoid w,        WriterT w,  StMWriter,  unStMWriter)
-TRANS_CTX(Monoid w, Strict.RWST r w s, StMRWSS,    unStMRWSS)
-TRANS_CTX(Monoid w,        RWST r w s, StMRWS,     unStMRWS)
+TRANS_CTX(Error e,         ErrorT e)
+TRANS_CTX(Monoid w, Strict.WriterT w)
+TRANS_CTX(Monoid w,        WriterT w)
+TRANS_CTX(Monoid w, Strict.RWST r w s)
+TRANS_CTX(Monoid w,        RWST r w s)
 
 
 --------------------------------------------------------------------------------
