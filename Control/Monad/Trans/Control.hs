@@ -150,8 +150,10 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 --------------------------------------------------------------------------------
 
 -- $MonadTransControlDefaults
--- Following functions can be used to define 'MonadTransControl' instances for
--- newtypes.
+--
+-- The following functions can be used to define a 'MonadTransControl' instance
+-- for a monad transformer which simply wraps another monad transformer which
+-- already has a @MonadTransControl@ instance. For example:
 --
 -- @
 -- {-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
@@ -165,6 +167,8 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 --     restoreT = 'defaultRestoreT' CounterT
 -- @
 
+-- | A function like 'Run' that runs a monad transformer @t@ which wraps the
+-- monad transformer @t'@. This is used in 'defaultLiftWith'.
 type RunDefault t t' = forall n b. Monad n => t n b -> n (StT t' b)
 
 -- | Default definition for the 'liftWith' method.
@@ -176,6 +180,7 @@ defaultLiftWith :: (Monad m, MonadTransControl n)
 defaultLiftWith t unT = \f -> t $ liftWith $ \run -> f $ run . unT
 {-# INLINE defaultLiftWith #-}
 
+-- | Default definition for the 'restoreT' method.
 defaultRestoreT :: (Monad m, MonadTransControl n)
                 => (n m a -> t m a)     -- ^ Monad constructor
                 -> m (StT n a)
@@ -385,6 +390,8 @@ BASE(       ST s)
 -- It can be used to define the 'StM' for new 'MonadBaseControl' instances.
 type ComposeSt t m a = StM m (StT t a)
 
+-- | A function like 'RunInBase' that runs a monad transformer @t@ in its base
+-- monad @b@. It is used in 'defaultLiftBaseWith'.
 type RunInBaseDefault t m b = forall a. t m a -> b (ComposeSt t m a)
 
 -- | Default defintion for the 'liftBaseWith' method.
