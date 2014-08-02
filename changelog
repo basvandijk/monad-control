@@ -1,0 +1,3 @@
+1.0.0.0
+	* Switch the associated data types StT and StM to associated type
+	  synonyms.
