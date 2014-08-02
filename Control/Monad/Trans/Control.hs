@@ -65,7 +65,7 @@ import Data.Either   ( Either )
 import GHC.Conc.Sync ( STM )
 #endif
 
-#if MIN_VERSION_base(4,4,0) || defined(INSTANCE_ST)
+#if MIN_VERSION_base(4,4,0)
 import           Control.Monad.ST.Lazy             ( ST )
 import qualified Control.Monad.ST.Strict as Strict ( ST )
 #endif
@@ -352,7 +352,7 @@ BASE(Identity)
 BASE(STM)
 #endif
 
-#if MIN_VERSION_base(4,4,0) || defined(INSTANCE_ST)
+#if MIN_VERSION_base(4,4,0)
 BASE(Strict.ST s)
 BASE(       ST s)
 #endif

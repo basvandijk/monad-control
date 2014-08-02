@@ -37,18 +37,7 @@ source-repository head
 
 --------------------------------------------------------------------------------
 
-Flag instanceST
-  Description:
-    If enabled this package will export MonadBaseControl instances for the lazy
-    and strict ST monad. If disabled these instances are only exported when base
-    >= 4.4. If enabled it is required that the transformer-base package exports
-    MonadBase instances for ST. It will do this by default.
-  Default: True
-
 Library
-  if flag(instanceST)
-    CPP-options: -DINSTANCE_ST
-
   Exposed-modules: Control.Monad.Trans.Control
 
   Build-depends: base                 >= 3     && < 5
