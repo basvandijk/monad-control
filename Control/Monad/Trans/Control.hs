@@ -45,7 +45,7 @@ module Control.Monad.Trans.Control
 
     , liftBaseOp, liftBaseOp_
 
-    , liftBaseDiscard
+    , liftBaseDiscard, liftBaseOpDiscard
     ) where
 
 
@@ -498,3 +498,21 @@ liftBaseOp_ f = \m -> control $ \runInBase -> f $ runInBase m
 liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> (m () -> m a)
 liftBaseDiscard f = \m -> liftBaseWith $ \runInBase -> f $ void $ runInBase m
 {-# INLINE liftBaseDiscard #-}
+
+-- | @liftBaseOpDiscard@ is a particular application of 'liftBaseWith' that allows
+-- lifting control operations of type:
+--
+-- @((a -> b ()) -> b c)@ to: @('MonadBaseControl' b m => (a -> m ()) -> m c)@.
+--
+-- Note that, while the argument computation @m ()@ has access to the captured
+-- state, all its side-effects in @m@ are discarded. It is run only for its
+-- side-effects in the base monad @b@.
+--
+-- For example:
+--
+-- @liftBaseDiscard (runServer addr port) :: 'MonadBaseControl' 'IO' m => m () -> m ()@
+liftBaseOpDiscard :: MonadBaseControl b m
+                  => ((a -> b ()) -> b c)
+                  ->  (a -> m ()) -> m c
+liftBaseOpDiscard f g = liftBaseWith $ \runInBase -> f $ void . runInBase . g
+{-# INLINE liftBaseOpDiscard #-}
