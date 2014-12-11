@@ -178,7 +178,7 @@ defaultLiftWith :: (Monad m, MonadTransControl n)
                 -> (RunDefault t n -> m a)
                 -> t m a
 defaultLiftWith t unT = \f -> t $ liftWith $ \run -> f $ run . unT
-{-# INLINE defaultLiftWith #-}
+{-# INLINABLE defaultLiftWith #-}
 
 -- | Default definition for the 'restoreT' method.
 defaultRestoreT :: (Monad m, MonadTransControl n)
@@ -186,7 +186,7 @@ defaultRestoreT :: (Monad m, MonadTransControl n)
                 -> m (StT n a)
                 -> t m a
 defaultRestoreT t = t . restoreT
-{-# INLINE defaultRestoreT #-}
+{-# INLINABLE defaultRestoreT #-}
 
 
 --------------------------------------------------------------------------------
@@ -197,45 +197,45 @@ instance MonadTransControl IdentityT where
     type StT IdentityT a = a
     liftWith f = IdentityT $ f $ runIdentityT
     restoreT = IdentityT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance MonadTransControl MaybeT where
     type StT MaybeT a = Maybe a
     liftWith f = MaybeT $ liftM return $ f $ runMaybeT
     restoreT = MaybeT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance Error e => MonadTransControl (ErrorT e) where
     type StT (ErrorT e) a = Either e a
     liftWith f = ErrorT $ liftM return $ f $ runErrorT
     restoreT = ErrorT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 #if MIN_VERSION_transformers(0,4,0)
 instance MonadTransControl (ExceptT e) where
     type StT (ExceptT e) a = Either e a
     liftWith f = ExceptT $ liftM return $ f $ runExceptT
     restoreT = ExceptT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 #endif
 
 instance MonadTransControl ListT where
     type StT ListT a = [a]
     liftWith f = ListT $ liftM return $ f $ runListT
     restoreT = ListT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (ReaderT r) where
     type StT (ReaderT r) a = a
     liftWith f = ReaderT $ \r -> f $ \t -> runReaderT t r
     restoreT = ReaderT . const
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (StateT s) where
     type StT (StateT s) a = (a, s)
@@ -243,8 +243,8 @@ instance MonadTransControl (StateT s) where
                    liftM (\x -> (x, s))
                          (f $ \t -> runStateT t s)
     restoreT = StateT . const
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (Strict.StateT s) where
     type StT (Strict.StateT s) a = (a, s)
@@ -252,32 +252,32 @@ instance MonadTransControl (Strict.StateT s) where
                    liftM (\x -> (x, s))
                          (f $ \t -> Strict.runStateT t s)
     restoreT = Strict.StateT . const
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (WriterT w) where
     type StT (WriterT w) a = (a, w)
     liftWith f = WriterT $ liftM (\x -> (x, mempty))
                                  (f $ runWriterT)
     restoreT = WriterT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
     type StT (Strict.WriterT w) a = (a, w)
     liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
                                         (f $ Strict.runWriterT)
     restoreT = Strict.WriterT
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (RWST r w s) where
     type StT (RWST r w s) a = (a, s, w)
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
                                      (f $ \t -> runRWST t r s)
     restoreT mSt = RWST $ \_ _ -> mSt
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     type StT (Strict.RWST r w s) a = (a, s, w)
@@ -285,8 +285,8 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
         Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
                                    (f $ \t -> Strict.runRWST t r s)
     restoreT mSt = Strict.RWST $ \_ _ -> mSt
-    {-# INLINE liftWith #-}
-    {-# INLINE restoreT #-}
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
 
 
 --------------------------------------------------------------------------------
@@ -338,8 +338,8 @@ instance MonadBaseControl (M) (M) where { \
     type StM (M) a = a;                   \
     liftBaseWith f = f id;                \
     restoreM = return;                    \
-    {-# INLINE liftBaseWith #-};          \
-    {-# INLINE restoreM #-}}
+    {-# INLINABLE liftBaseWith #-};          \
+    {-# INLINABLE restoreM #-}}
 
 BASE(IO)
 BASE(Maybe)
@@ -409,7 +409,7 @@ defaultLiftBaseWith :: (MonadTransControl t, MonadBaseControl b m)
 defaultLiftBaseWith = \f -> liftWith $ \run ->
                               liftBaseWith $ \runInBase ->
                                 f $ runInBase . run
-{-# INLINE defaultLiftBaseWith #-}
+{-# INLINABLE defaultLiftBaseWith #-}
 
 -- | Default definition for the 'restoreM' method.
 --
@@ -417,7 +417,7 @@ defaultLiftBaseWith = \f -> liftWith $ \run ->
 defaultRestoreM :: (MonadTransControl t, MonadBaseControl b m)
                 => StM m (StT t a) -> t m a
 defaultRestoreM = restoreT . restoreM
-{-# INLINE defaultRestoreM #-}
+{-# INLINABLE defaultRestoreM #-}
 
 
 --------------------------------------------------------------------------------
@@ -428,8 +428,8 @@ defaultRestoreM = restoreT . restoreM
     type StM (T m) a = ComposeSt (T) m a; \
     liftBaseWith = defaultLiftBaseWith;   \
     restoreM     = defaultRestoreM;       \
-    {-# INLINE liftBaseWith #-};          \
-    {-# INLINE restoreM #-}}
+    {-# INLINABLE liftBaseWith #-};          \
+    {-# INLINABLE restoreM #-}}
 
 #define TRANS(         T) \
   instance (     MonadBaseControl b m) => MonadBaseControl b (T m) where BODY(T)
@@ -461,7 +461,7 @@ TRANS_CTX(Monoid w,        RWST r w s)
 -- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
-{-# INLINE control #-}
+{-# INLINABLE control #-}
 
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
@@ -475,7 +475,7 @@ liftBaseOp :: MonadBaseControl b m
            => ((a -> b (StM m c)) -> b (StM m d))
            -> ((a ->        m c)  ->        m d)
 liftBaseOp f = \g -> control $ \runInBase -> f $ runInBase . g
-{-# INLINE liftBaseOp #-}
+{-# INLINABLE liftBaseOp #-}
 
 -- | @liftBaseOp_@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
@@ -489,7 +489,7 @@ liftBaseOp_ :: MonadBaseControl b m
             => (b (StM m a) -> b (StM m c))
             -> (       m a  ->        m c)
 liftBaseOp_ f = \m -> control $ \runInBase -> f $ runInBase m
-{-# INLINE liftBaseOp_ #-}
+{-# INLINABLE liftBaseOp_ #-}
 
 -- | @liftBaseDiscard@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
@@ -505,4 +505,4 @@ liftBaseOp_ f = \m -> control $ \runInBase -> f $ runInBase m
 -- @liftBaseDiscard forkIO :: 'MonadBaseControl' 'IO' m => m () -> m ThreadId@
 liftBaseDiscard :: MonadBaseControl b m => (b () -> b a) -> (m () -> m a)
 liftBaseDiscard f = \m -> liftBaseWith $ \runInBase -> f $ void $ runInBase m
-{-# INLINE liftBaseDiscard #-}
+{-# INLINABLE liftBaseDiscard #-}
