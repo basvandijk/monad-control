@@ -1,3 +1,56 @@
+1.0
+
+* Use associated type synonyms instead of associated data types.
+
+
+0.3.3.0
+
+* Support transformers-0.4.0.0
+
+* Drop unicode syntax and symbols
+
+
+0.3.2.3
+
+*  Fix haddock documentation error
+
+
+0.3.2.2
+
+*  Fix preprocessor directive for GHC 7.6.3
+
+
+0.3.2.1
+
+* Resolve #14. Bump upper version bound of base to 5
+
+
+0.3.2
+
+* Added defaultLiftWith and defaultRestoreT to simplify defining
+  MonadTransControl for newtypes.
+
+
+0.3.1.4
+
+* Compatibility with ghc head
+
+
+0.3.1.3
+
+* Added a Trustworthy flag
+
+
+0.3.1.2
+
+* Fix issue #9. Replace all Unicode in type variables.
+
+
+0.3.1.1
+
+* Add MonadBaseControl instances for ST and STM.
+
+
 0.3
 
 (Released on: Fri Dec 2 09:52:16 UTC 2011)
