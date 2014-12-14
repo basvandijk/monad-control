@@ -466,12 +466,12 @@ control f = liftBaseWith f >>= restoreM
 -- | Embed a transformer function as an function in the base monad returning a
 -- mutated transformer state.
 embed :: MonadBaseControl b m => (a -> m c) -> m (a -> b (StM m c))
-embed f = liftBaseWith $ \run -> return (run ∘ f)
+embed f = liftBaseWith $ \runInBase -> return (runInBase . f)
 
 -- | Performs the same function as 'embed', but discards transformer state
 -- from the embedded function.
 embed_ :: MonadBaseControl b m => (a -> m ()) -> m (a -> b ())
-embed_ f = liftBaseWith $ \run -> return (void ∘ run ∘ f)
+embed_ f = liftBaseWith $ \runInBase -> return (void . runInBase . f)
 
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
