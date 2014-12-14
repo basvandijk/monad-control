@@ -274,7 +274,7 @@ instance Monoid w => MonadTransControl (Strict.WriterT w) where
 instance Monoid w => MonadTransControl (RWST r w s) where
     type StT (RWST r w s) a = (a, s, w)
     liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                     (f $ \t -> runRWST t r s)
+                                      (f $ \t -> runRWST t r s)
     restoreT mSt = RWST $ \_ _ -> mSt
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
@@ -283,7 +283,7 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     type StT (Strict.RWST r w s) a = (a, s, w)
     liftWith f =
         Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                   (f $ \t -> Strict.runRWST t r s)
+                                    (f $ \t -> Strict.runRWST t r s)
     restoreT mSt = Strict.RWST $ \_ _ -> mSt
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
@@ -338,7 +338,7 @@ instance MonadBaseControl (M) (M) where { \
     type StM (M) a = a;                   \
     liftBaseWith f = f id;                \
     restoreM = return;                    \
-    {-# INLINABLE liftBaseWith #-};          \
+    {-# INLINABLE liftBaseWith #-};       \
     {-# INLINABLE restoreM #-}}
 
 BASE(IO)
@@ -428,7 +428,7 @@ defaultRestoreM = restoreT . restoreM
     type StM (T m) a = ComposeSt (T) m a; \
     liftBaseWith = defaultLiftBaseWith;   \
     restoreM     = defaultRestoreM;       \
-    {-# INLINABLE liftBaseWith #-};          \
+    {-# INLINABLE liftBaseWith #-};       \
     {-# INLINABLE restoreM #-}}
 
 #define TRANS(         T) \
@@ -467,11 +467,13 @@ control f = liftBaseWith f >>= restoreM
 -- mutated transformer state.
 embed :: MonadBaseControl b m => (a -> m c) -> m (a -> b (StM m c))
 embed f = liftBaseWith $ \runInBase -> return (runInBase . f)
+{-# INLINABLE embed #-}
 
 -- | Performs the same function as 'embed', but discards transformer state
 -- from the embedded function.
 embed_ :: MonadBaseControl b m => (a -> m ()) -> m (a -> b ())
 embed_ f = liftBaseWith $ \runInBase -> return (void . runInBase . f)
+{-# INLINABLE embed_ #-}
 
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
