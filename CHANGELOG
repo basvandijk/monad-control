@@ -1,6 +1,12 @@
-1.0
+1.0.0.0
 
-* Use associated type synonyms instead of associated data types.
+* Switch the associated data types StT and StM to associated type synonyms.
+
+  This is an API breaking change. To fix your MonadTransControl or
+  MonadBaseControl instances simply remove the StT or StM constructors
+  and deconstructors for your monad transformers or monad.
+
+* Add the embed, embed_ and liftBaseOpDiscard functions.
 
 
 0.3.3.0
