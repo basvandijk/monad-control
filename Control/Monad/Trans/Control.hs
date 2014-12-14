@@ -41,7 +41,7 @@ module Control.Monad.Trans.Control
     , ComposeSt, RunInBaseDefault, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
-    , control
+    , control, embed, embed_
 
     , liftBaseOp, liftBaseOp_
 
@@ -462,6 +462,16 @@ TRANS_CTX(Monoid w,        RWST r w s)
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINABLE control #-}
+
+-- | Embed a transformer function as an function in the base monad returning a
+-- mutated transformer state.
+embed :: MonadBaseControl b m => (a -> m c) -> m (a -> b (StM m c))
+embed f = liftBaseWith $ \run -> return (run ∘ f)
+
+-- | Performs the same function as 'embed', but discards transformer state
+-- from the embedded function.
+embed_ :: MonadBaseControl b m => (a -> m ()) -> m (a -> b ())
+embed_ f = liftBaseWith $ \run -> return (void ∘ run ∘ f)
 
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
