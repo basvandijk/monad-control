@@ -27,7 +27,7 @@ Description:
   and exploits the @RankNTypes@ and @TypeFamilies@ language extensions to
   simplify and speedup most definitions.
 
-extra-source-files:  README.markdown, NEWS
+extra-source-files:  README.markdown, CHANGELOG
 
 --------------------------------------------------------------------------------
 
