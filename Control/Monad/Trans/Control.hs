@@ -413,9 +413,9 @@ defaultLiftBaseWith = \f -> liftWith $ \run ->
 
 -- | Default definition for the 'restoreM' method.
 --
--- Note that: @defaultRestoreM unStM = 'restoreT' . 'restoreM' . unStM@
+-- Note that: @defaultRestoreM = 'restoreT' . 'restoreM'@
 defaultRestoreM :: (MonadTransControl t, MonadBaseControl b m)
-                => StM m (StT t a) -> t m a
+                => ComposeSt t m a -> t m a
 defaultRestoreM = restoreT . restoreM
 {-# INLINABLE defaultRestoreM #-}
 
