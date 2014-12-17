@@ -1,3 +1,10 @@
+1.0.0.1
+
+* Use Safe instead of Trustworthy.
+
+  This requires a dependency on stm.
+
+
 1.0.0.0
 
 * Switch the associated data types StT and StM to associated type synonyms.

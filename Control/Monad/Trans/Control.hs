@@ -61,12 +61,13 @@ import System.IO     ( IO )
 import Data.Maybe    ( Maybe )
 import Data.Either   ( Either )
 
-import Control.Monad.STM ( STM )
-
 #if MIN_VERSION_base(4,4,0)
 import           Control.Monad.ST.Lazy.Safe           ( ST )
 import qualified Control.Monad.ST.Safe      as Strict ( ST )
 #endif
+
+-- from stm:
+import Control.Monad.STM ( STM )
 
 -- from transformers:
 import Control.Monad.Trans.Class    ( MonadTrans )
