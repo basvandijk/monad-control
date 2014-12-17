@@ -41,7 +41,8 @@ Library
   Exposed-modules: Control.Monad.Trans.Control
 
   Build-depends: base                 >= 3     && < 5
+               , stm                  >= 2.3
+               , transformers-base    >= 0.4.3 && < 0.5
                , transformers         >= 0.2   && < 0.5
-               , transformers-base    >= 0.4.2 && < 0.5
 
   Ghc-options: -Wall

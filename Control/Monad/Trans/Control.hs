@@ -8,7 +8,7 @@
            , MultiParamTypeClasses #-}
 
 #if __GLASGOW_HASKELL__ >= 702
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 #endif
 
 #if MIN_VERSION_transformers(0,4,0)
@@ -61,13 +61,11 @@ import System.IO     ( IO )
 import Data.Maybe    ( Maybe )
 import Data.Either   ( Either )
 
-#if MIN_VERSION_base(4,3,0)
-import GHC.Conc.Sync ( STM )
-#endif
+import Control.Monad.STM ( STM )
 
 #if MIN_VERSION_base(4,4,0)
-import           Control.Monad.ST.Lazy             ( ST )
-import qualified Control.Monad.ST.Strict as Strict ( ST )
+import           Control.Monad.ST.Lazy.Safe           ( ST )
+import qualified Control.Monad.ST.Safe      as Strict ( ST )
 #endif
 
 -- from transformers:
@@ -348,9 +346,7 @@ BASE([])
 BASE((->) r)
 BASE(Identity)
 
-#if MIN_VERSION_base(4,3,0)
 BASE(STM)
-#endif
 
 #if MIN_VERSION_base(4,4,0)
 BASE(Strict.ST s)
