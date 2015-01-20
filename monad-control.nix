@@ -2,7 +2,7 @@
 
 cabal.mkDerivation (self: {
   pname = "monad-control";
-  version = "1.0.0.0";
+  version = "HEAD";
   src = ./.;
   buildDepends = [ transformers transformersBase ];
   meta = {
