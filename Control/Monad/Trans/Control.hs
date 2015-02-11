@@ -80,10 +80,7 @@ import Control.Monad.Trans.Reader   ( ReaderT  (ReaderT),   runReaderT )
 import Control.Monad.Trans.State    ( StateT   (StateT),    runStateT )
 import Control.Monad.Trans.Writer   ( WriterT  (WriterT),   runWriterT )
 import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
-
-#if MIN_VERSION_transformers(0,4,0)
 import Control.Monad.Trans.Except   ( ExceptT  (ExceptT),   runExceptT )
-#endif
 
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
@@ -213,14 +210,12 @@ instance Error e => MonadTransControl (ErrorT e) where
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
-#if MIN_VERSION_transformers(0,4,0)
 instance MonadTransControl (ExceptT e) where
     type StT (ExceptT e) a = Either e a
     liftWith f = ExceptT $ liftM return $ f $ runExceptT
     restoreT = ExceptT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
-#endif
 
 instance MonadTransControl ListT where
     type StT ListT a = [a]
@@ -439,10 +434,7 @@ TRANS(ListT)
 TRANS(ReaderT r)
 TRANS(Strict.StateT s)
 TRANS(       StateT s)
-
-#if MIN_VERSION_transformers(0,4,0)
 TRANS(ExceptT e)
-#endif
 
 TRANS_CTX(Error e,         ErrorT e)
 TRANS_CTX(Monoid w, Strict.WriterT w)
