@@ -1,3 +1,9 @@
+1.0.0.3
+
+* Unconditionally add ExceptT instances using transformers-compat.
+  Courtesy of Adam Bergmark.
+
+
 1.0.0.2
 
 * Add a base >= 4.5 constraint because monad-control only builds on GHC >= 7.4.
