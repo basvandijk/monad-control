@@ -1,3 +1,8 @@
+1.0.0.4
+
+* Support transformers-compat-0.4.*.
+
+
 1.0.0.3
 
 * Unconditionally add ExceptT instances using transformers-compat.
