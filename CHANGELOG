@@ -32,6 +32,12 @@
 * Add the embed, embed_ and liftBaseOpDiscard functions.
 
 
+0.3.3.1
+
+* Unconditionally add ExceptT instances using transformers-compat.
+  Courtesy of Adam Bergmark.
+
+
 0.3.3.0
 
 * Support transformers-0.4.0.0
