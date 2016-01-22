@@ -28,6 +28,12 @@ Description:
   simplify and speedup most definitions.
 
 extra-source-files:  README.markdown, CHANGELOG
+tested-with:
+  GHC==7.4.2,
+  GHC==7.6.3,
+  GHC==7.8.4,
+  GHC==7.10.3,
+  GHC==8.0.1
 
 --------------------------------------------------------------------------------
 
