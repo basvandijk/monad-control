@@ -5,6 +5,8 @@
           => (m (StT t a) -> m (StT t b)) -- ^
           -> t m a -> t m b
 
+* Added Travis-CI integration
+
 
 1.0.0.5
 
