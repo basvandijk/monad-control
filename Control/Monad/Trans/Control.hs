@@ -44,7 +44,7 @@ module Control.Monad.Trans.Control
     , ComposeSt, RunInBaseDefault, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
-    , control, embed, embed_
+    , control, embed, embed_, captureT, captureM
 
     , liftBaseOp, liftBaseOp_
 
@@ -464,6 +464,16 @@ TRANS_CTX(Monoid w,        RWST r w s)
 --------------------------------------------------------------------------------
 -- * Utility functions
 --------------------------------------------------------------------------------
+
+-- | Capture the current state of a transformer
+captureT :: (MonadTransControl t, Monad (t m), Monad m) => t m (StT t ())
+captureT = liftWith $ \runInM -> runInM (return ())
+{-# INLINABLE captureT #-}
+
+-- | Capture the current state above the base monad
+captureM :: MonadBaseControl b m => m (StM m ())
+captureM = liftBaseWith $ \runInBase -> runInBase (return ())
+{-# INLINABLE captureM #-}
 
 -- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
