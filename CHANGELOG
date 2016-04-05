@@ -1,3 +1,11 @@
+1.0.1.0
+
+* Added liftThrough
+          :: (MonadTransControl t, Monad (t m), Monad m)
+          => (m (StT t a) -> m (StT t b)) -- ^
+          -> t m a -> t m b
+
+
 1.0.0.5
 
 * Support transformers-0.5 & ransformers-compat-0.5.*.

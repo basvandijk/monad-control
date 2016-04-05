@@ -29,17 +29,17 @@ module Control.Monad.Trans.Control
     ( -- * MonadTransControl
       MonadTransControl(..), Run
 
-      -- ** Defaults for MonadTransControl
+      -- ** Defaults
       -- $MonadTransControlDefaults
     , RunDefault, defaultLiftWith, defaultRestoreT
 
-      -- ** MonadTransControl convenience functions
+      -- ** Convenience functions
     , liftThrough
 
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
-      -- ** Defaults for MonadBaseControl
+      -- ** Defaults
       -- $MonadBaseControlDefaults
     , ComposeSt, RunInBaseDefault, defaultLiftBaseWith, defaultRestoreM
 
@@ -291,7 +291,10 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 --------------------------------------------------------------------------------
 
 -- | Transform an action in @t m@ using a transformer that operates on the underlying monad @m@
-liftThrough :: (MonadTransControl t, Monad (t m), Monad m) => (m (StT t a) -> m (StT t b)) -> t m a -> t m b
+liftThrough
+    :: (MonadTransControl t, Monad (t m), Monad m)
+    => (m (StT t a) -> m (StT t b)) -- ^
+    -> t m a -> t m b
 liftThrough f t = do
   st <- liftWith $ \run -> do
     f $ run t
