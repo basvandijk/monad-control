@@ -1,16 +1,15 @@
+{ nixpkgs ? import <nixpkgs> {}, compiler ? "default" }:
+
 let
-  pkgs = import <nixpkgs> {};
-  haskellPackages = pkgs.haskellPackages.override {
-    extension = self: super: {
-      monadControl = self.callPackage ./monad-control.nix {};
-    };
-  };
-in pkgs.myEnvFun {
-     name = haskellPackages.monadControl.name;
-     buildInputs = [
-       (haskellPackages.ghcWithPackages (hs: ([
-         hs.cabalInstall
-         hs.hscolour
-       ] ++ hs.monadControl.propagatedNativeBuildInputs)))
-     ];
-   }
+
+  inherit (nixpkgs) pkgs;
+
+  haskellPackages = if compiler == "default"
+                       then pkgs.haskellPackages
+                       else pkgs.haskell.packages.${compiler};
+
+  drv = haskellPackages.callPackage (import ./monad-control.nix) {};
+
+in
+
+  if pkgs.lib.inNixShell then drv.env else drv
