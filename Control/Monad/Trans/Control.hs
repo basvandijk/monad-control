@@ -33,9 +33,6 @@ module Control.Monad.Trans.Control
       -- $MonadTransControlDefaults
     , RunDefault, defaultLiftWith, defaultRestoreT
 
-      -- ** Convenience functions
-    , liftThrough
-
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
@@ -49,6 +46,8 @@ module Control.Monad.Trans.Control
     , liftBaseOp, liftBaseOp_
 
     , liftBaseDiscard, liftBaseOpDiscard
+
+    , liftThrough
     ) where
 
 
@@ -287,21 +286,6 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 
 
 --------------------------------------------------------------------------------
--- MonadTransControl convenience functions
---------------------------------------------------------------------------------
-
--- | Transform an action in @t m@ using a transformer that operates on the underlying monad @m@
-liftThrough
-    :: (MonadTransControl t, Monad (t m), Monad m)
-    => (m (StT t a) -> m (StT t b)) -- ^
-    -> t m a -> t m b
-liftThrough f t = do
-  st <- liftWith $ \run -> do
-    f $ run t
-  restoreT $ return st
-
-
---------------------------------------------------------------------------------
 -- MonadBaseControl type class
 --------------------------------------------------------------------------------
 
@@ -465,16 +449,6 @@ TRANS_CTX(Monoid w,        RWST r w s)
 -- * Utility functions
 --------------------------------------------------------------------------------
 
--- | Capture the current state of a transformer
-captureT :: (MonadTransControl t, Monad (t m), Monad m) => t m (StT t ())
-captureT = liftWith $ \runInM -> runInM (return ())
-{-# INLINABLE captureT #-}
-
--- | Capture the current state above the base monad
-captureM :: MonadBaseControl b m => m (StM m ())
-captureM = liftBaseWith $ \runInBase -> runInBase (return ())
-{-# INLINABLE captureM #-}
-
 -- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
@@ -491,6 +465,16 @@ embed f = liftBaseWith $ \runInBase -> return (runInBase . f)
 embed_ :: MonadBaseControl b m => (a -> m ()) -> m (a -> b ())
 embed_ f = liftBaseWith $ \runInBase -> return (void . runInBase . f)
 {-# INLINABLE embed_ #-}
+
+-- | Capture the current state of a transformer
+captureT :: (MonadTransControl t, Monad (t m), Monad m) => t m (StT t ())
+captureT = liftWith $ \runInM -> runInM (return ())
+{-# INLINABLE captureT #-}
+
+-- | Capture the current state above the base monad
+captureM :: MonadBaseControl b m => m (StM m ())
+captureM = liftBaseWith $ \runInBase -> runInBase (return ())
+{-# INLINABLE captureM #-}
 
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
@@ -553,3 +537,13 @@ liftBaseOpDiscard :: MonadBaseControl b m
                   ->  (a -> m ()) -> m c
 liftBaseOpDiscard f g = liftBaseWith $ \runInBase -> f $ void . runInBase . g
 {-# INLINABLE liftBaseOpDiscard #-}
+
+-- | Transform an action in @t m@ using a transformer that operates on the underlying monad @m@
+liftThrough
+    :: (MonadTransControl t, Monad (t m), Monad m)
+    => (m (StT t a) -> m (StT t b)) -- ^
+    -> t m a -> t m b
+liftThrough f t = do
+  st <- liftWith $ \run -> do
+    f $ run t
+  restoreT $ return st

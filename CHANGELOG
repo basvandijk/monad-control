@@ -1,9 +1,14 @@
 1.0.1.0
 
-* Added liftThrough
-          :: (MonadTransControl t, Monad (t m), Monad m)
-          => (m (StT t a) -> m (StT t b)) -- ^
-          -> t m a -> t m b
+* Added the functions:
+
+  liftThrough
+    :: (MonadTransControl t, Monad (t m), Monad m)
+    => (m (StT t a) -> m (StT t b)) -- ^
+    -> t m a -> t m b
+
+  captureT :: (MonadTransControl t, Monad (t m), Monad m) => t m (StT t ())
+  captureM :: MonadBaseControl b m => m (StM m ())
 
 * Added Travis-CI integration
 
