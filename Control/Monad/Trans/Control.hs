@@ -109,6 +109,21 @@ import Prelude (id)
 
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
+  --
+  -- For clarity, because haddock does not display associated types, below are
+  -- the elaborated 'StT' definitions provided by this library:
+  --
+  -- @
+  -- StT 'IdentityT'    a ~ a
+  -- StT 'MaybeT'       a ~ 'Maybe' a
+  -- StT ('ErrorT' e)   a ~ 'Error' e => 'Either' e a
+  -- StT ('ExceptT' e)  a ~ 'Either' e a
+  -- StT 'ListT'        a ~ [a]
+  -- StT ('ReaderT' r)  a ~ a
+  -- StT ('StateT' s)   a ~ (a, s)
+  -- StT ('WriterT' w)  a ~ 'Monoid' w => (a, w)
+  -- StT ('RWST' r w s) a ~ 'Monoid' w => (a, s, w)
+  -- @
   type StT t a :: *
 
   -- | @liftWith@ is similar to 'lift' in that it lifts a computation from
@@ -132,6 +147,20 @@ class MonadTrans t => MonadTransControl t where
   -- Instances should satisfy:
   --
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
+  --
+  -- Example type signatures:
+  --
+  -- @
+  -- restoreT :: 'Monad' m             => m a            -> 'IdentityT' m a
+  -- restoreT :: 'Monad' m             => m ('Maybe' a)    -> 'MaybeT' m a
+  -- restoreT :: ('Monad' m, 'Error' e)  => m ('Either' e a) -> 'ErrorT' e m a
+  -- restoreT :: 'Monad' m             => m ('Either' e a) -> 'ExceptT' e m a
+  -- restoreT :: 'Monad' m             => m [a]          -> 'ListT' m a
+  -- restoreT :: 'Monad' m             => m a            -> 'ReaderT' r m a
+  -- restoreT :: 'Monad' m             => m (a, s)       -> 'StateT' s m a
+  -- restoreT :: ('Monad' m, 'Monoid' w) => m (a, w)       -> 'WriterT' w m a
+  -- restoreT :: ('Monad' m, 'Monoid' w) => m (a, s, w)    -> 'RWST' r w s m a
+  -- @
   restoreT :: Monad m => m (StT t a) -> t m a
 
 -- | A function that runs a transformed monad @t n@ on the monadic state that
@@ -140,6 +169,20 @@ class MonadTrans t => MonadTransControl t where
 -- A @Run t@ function yields a computation in @n@ that returns the monadic state
 -- of @t@. This state can later be used to restore a @t@ computation using
 -- 'restoreT'.
+--
+-- Example type equalities:
+--
+-- @
+-- Run 'IdentityT'    ~ forall n b. 'Monad' n             => 'IdentityT'  n b -> n b
+-- Run 'MaybeT'       ~ forall n b. 'Monad' n             => 'MaybeT'     n b -> n ('Maybe' b)
+-- Run ('ErrorT' e)   ~ forall n b. ('Monad' n, 'Error' e)  => 'ErrorT' e   n b -> n ('Either' e b)
+-- Run ('ExceptT' e)  ~ forall n b. 'Monad' n             => 'ExceptT' e  n b -> n ('Either' e b)
+-- Run 'ListT'        ~ forall n b. 'Monad' n             => 'ListT'      n b -> n [b]
+-- Run ('ReaderT' r)  ~ forall n b. 'Monad' n             => 'ReaderT' r  n b -> n b
+-- Run ('StateT' s)   ~ forall n b. 'Monad' n             => 'StateT' s   n b -> n (a, s)
+-- Run ('WriterT' w)  ~ forall n b. ('Monad' n, 'Monoid' w) => 'WriterT' w  n b -> n (a, w)
+-- Run ('RWST' r w s) ~ forall n b. ('Monad' n, 'Monoid' w) => 'RWST' r w s n b -> n (a, s, w)
+-- @
 type Run t = forall n b. Monad n => t n b -> n (StT t b)
 
 
@@ -291,6 +334,35 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 
 class MonadBase b m => MonadBaseControl b m | m -> b where
     -- | Monadic state of @m@.
+    --
+    -- For all non-transformer monads, @StM m a ~ a@:
+    --
+    -- @
+    -- StM 'IO'         a ~ a
+    -- StM 'Maybe'      a ~ a
+    -- StM ('Either' e) a ~ a
+    -- StM []         a ~ a
+    -- StM ((->) r)   a ~ a
+    -- StM 'Identity'   a ~ a
+    -- StM 'STM'        a ~ a
+    -- StM ('ST' s)     a ~ a
+    -- @
+    --
+    -- All transformer monads\' 'StM' depends on both the monadic state of the
+    -- transformer (given by its 'StT' from 'MonadTransControl'), as well as its
+    -- inner monad's monadic state, given by its 'StM' from 'MonadBaseControl':
+    --
+    -- @
+    -- StM ('IdentityT'  m) a ~ StM m a
+    -- StM ('MaybeT'     m) a ~ StM m ('Maybe' a)
+    -- StM ('ErrorT' e   m) a ~ 'Error' e => StM m ('Either' e a)
+    -- StM ('ExceptT' e  m) a ~ StM m ('Either' e a)
+    -- StM ('ListT'      m) a ~ StM m [a]
+    -- StM ('ReaderT' r  m) a ~ StM m a
+    -- StM ('StateT' s   m) a ~ StM m (a, s)
+    -- StM ('WriterT' w  m) a ~ 'Monoid' w => StM m (a, w)
+    -- StM ('RWST' r w s m) a ~ 'Monoid' w => StM m (a, s, w)
+    -- @
     type StM m a :: *
 
     -- | @liftBaseWith@ is similar to 'liftIO' and 'liftBase' in that it
@@ -322,6 +394,20 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
 -- A @RunInBase m@ function yields a computation in the base monad of @m@ that
 -- returns the monadic state of @m@. This state can later be used to restore the
 -- @m@ computation using 'restoreM'.
+--
+-- Example type equalities:
+--
+-- @
+-- RunInBase ('IdentityT'  m) b ~ forall a.             'IdentityT'  m a -> b ('StM' m a)
+-- RunInBase ('MaybeT'     m) b ~ forall a.             'MaybeT'     m a -> b ('StM' m ('Maybe' a))
+-- RunInBase ('ErrorT' e   m) b ~ forall a. 'Error' e =>  'ErrorT' e   m a -> b ('StM' m ('Either' e a))
+-- RunInBase ('ExceptT' e  m) b ~ forall a.             'ExceptT' e  m a -> b ('StM' m ('Either' e a))
+-- RunInBase ('ListT'      m) b ~ forall a.             'ListT'      m a -> b ('StM' m [a])
+-- RunInBase ('ReaderT' r  m) b ~ forall a.             'ReaderT'    m a -> b ('StM' m a)
+-- RunInBase ('StateT' s   m) b ~ forall a.             'StateT' s   m a -> b ('StM' m (a, s))
+-- RunInBase ('WriterT' w  m) b ~ forall a. 'Monoid' w => 'WriterT' w  m a -> b ('StM' m (a, w))
+-- RunInBase ('RWST' r w s m) b ~ forall a. 'Monoid' w => 'RWST' r w s m a -> b ('StM' m (a, s, w))
+-- @
 type RunInBase m b = forall a. m a -> b (StM m a)
 
 
