@@ -200,6 +200,8 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 --
 -- @
 -- {-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
+-- {-\# LANGUAGE UndecidableInstances \#-}
+-- {-\# LANGUAGE TypeFamilies \#-}
 --
 -- newtype CounterT m a = CounterT {unCounterT :: StateT Int m a}
 --   deriving (Monad, MonadTrans)
