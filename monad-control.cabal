@@ -1,5 +1,5 @@
 Name:                monad-control
-Version:             1.0.2.0
+Version:             1.0.2.1
 Synopsis:            Lift control operations, like exception catching, through monad transformers
 License:             BSD3
 License-file:        LICENSE
@@ -18,7 +18,8 @@ Description:
   transformers in @MonadTransControl@, which includes all standard monad
   transformers in the @transformers@ library except @ContT@.
   .
-  See the @lifted-base@ package which uses @monad-control@ to lift @IO@
+  See the <http://hackage.haskell.org/package/lifted-base lifted-base>
+  package which uses @monad-control@ to lift @IO@
   operations from the @base@ library (like @catch@ or @bracket@) into any monad
   that is an instance of @MonadBase@ or @MonadBaseControl@.
   .

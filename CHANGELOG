@@ -1,3 +1,15 @@
+1.0.2.1
+
+* Refer to Michael Snoyman's excellent tutorial on monad-control.
+
+
+1.0.2.0
+
+* Improve documentation by including type equalities in the Haddock documentation.
+
+* Add helpers to define MonadTransControl for stack of two:
+  RunDefault2, defaultLiftWith2, defaultRestoreT2
+
 1.0.1.0
 
 * Added the functions:

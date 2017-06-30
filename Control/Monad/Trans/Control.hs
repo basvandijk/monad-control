@@ -17,12 +17,24 @@
 #endif
 
 {- |
-Module      :  Control.Monad.Trans.Control
 Copyright   :  Bas van Dijk, Anders Kaseorg
-License     :  BSD-style
-
+License     :  BSD3
 Maintainer  :  Bas van Dijk <v.dijk.bas@gmail.com>
-Stability   :  experimental
+
+This module defines the type class 'MonadBaseControl', a subset of
+'MonadBase' into which generic control operations such as @catch@ can be
+lifted from @IO@ or any other base monad. Instances are based on monad
+transformers in 'MonadTransControl', which includes all standard monad
+transformers in the @transformers@ library except @ContT@.
+
+See the <http://hackage.haskell.org/package/lifted-base lifted-base>
+package which uses @monad-control@ to lift @IO@
+operations from the @base@ library (like @catch@ or @bracket@) into any monad
+that is an instance of @MonadBase@ or @MonadBaseControl@.
+
+See the following tutorial by Michael Snoyman on how to use this package:
+
+<https://www.yesodweb.com/book/monad-control>
 -}
 
 module Control.Monad.Trans.Control
