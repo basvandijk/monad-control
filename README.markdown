@@ -12,9 +12,6 @@ library.  The main difference is that this package provides CPS style
 operators and exploits the `RankNTypes` language extension to simplify
 most definitions.
 
-The package includes a copy of the `monad-peel` testsuite written by
-Anders Kaseorg The tests can be performed by using `cabal test`.
-
 [This `criterion`](https://github.com/basvandijk/bench-monad-peel-control)
 based benchmark shows that `monad-control` is on average about 2.5
 times faster than `monad-peel`.
