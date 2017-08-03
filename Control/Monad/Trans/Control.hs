@@ -124,8 +124,21 @@ import Prelude (id)
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
   --
-  -- For clarity, because haddock does not display associated types, below are
-  -- the elaborated 'StT' definitions provided by this library:
+  -- The monadic state of a monad transformer is the result type of its @run@
+  -- function, e.g.:
+  --
+  -- @
+  -- 'runReaderT' :: 'ReaderT' r m a -> r -> m a
+  -- 'StT' ('ReaderT' r) a ~ a
+  --
+  -- 'runStateT' :: 'StateT' s m a -> s -> m (a, s)
+  -- 'StT' ('StateT' s) a ~ (a, s)
+  --
+  -- 'runMaybeT' :: 'MaybeT' m a -> m ('Maybe' a)
+  -- 'StT' 'MaybeT' a ~ 'Maybe' a
+  -- @
+  --
+  -- Provided type instances:
   --
   -- @
   -- StT 'IdentityT'    a ~ a
@@ -161,6 +174,23 @@ class MonadTrans t => MonadTransControl t where
   -- Instances should satisfy:
   --
   -- @liftWith (\\run -> run t) >>= restoreT . return = t@
+  --
+  -- @restoreT@ is usually implemented through the constructor of the monad
+  -- transformer:
+  --
+  -- @
+  -- 'ReaderT'   :: (r -> m a) -> 'ReaderT' r m a
+  -- restoreT  ::       m a  -> 'ReaderT' r m a
+  -- restoreT action = 'ReaderT' { runReaderT = 'const' action }
+  --
+  -- 'StateT'   :: (s -> m (a, s)) -> 'StateT' s m a
+  -- restoreT ::       m (a, s)  -> 'StateT' s m a
+  -- restoreT action = 'StateT' { runStateT = 'const' action }
+  --
+  -- 'MaybeT'   :: m ('Maybe' a) -> 'MaybeT' m a
+  -- restoreT :: m ('Maybe' a) -> 'MaybeT' m a
+  -- restoreT action = 'MaybeT' action
+  -- @
   --
   -- Example type signatures:
   --
