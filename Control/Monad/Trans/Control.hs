@@ -166,6 +166,23 @@ class MonadTrans t => MonadTransControl t where
   -- @liftWith@ captures the state of @t@. It then provides the @m@
   -- computation with a 'Run' function that allows running @t n@ computations in
   -- @n@ (for all @n@) on the captured state.
+  --
+  -- If the @Run@ function is ignored, @liftWith@ coincides with @lift@:
+  --
+  -- @lift f = liftWith (const f)@
+  --
+  -- Implementations use the @'Run'@ function associated with a transformer:
+  --
+  -- @
+  -- liftWith :: 'Monad' m => (('Monad' n => 'ReaderT' r n b -> n b) -> m a) -> 'ReaderT' r m a
+  -- liftWith f = 'ReaderT' (\r -> f (\action -> 'runReaderT' action r))
+  --
+  -- liftWith :: 'Monad' m => (('Monad' n => StateT s n b -> n b) -> m a) -> StateT s m a
+  -- liftWith f = 'StateT' (\s -> f (\action -> 'runStateT' action s))
+  --
+  -- liftWith :: 'Monad' m => (('Monad' n => 'MaybeT' n b -> n ('Maybe' b)) -> m a) -> 'MaybeT' m a
+  -- liftWith f = 'MaybeT' ('fmap' 'Just' (f 'runMaybeT'))
+  -- @
   liftWith :: Monad m => (Run t -> m a) -> t m a
 
   -- | Construct a @t@ computation from the monadic state of @t@ that is
@@ -226,6 +243,14 @@ class MonadTrans t => MonadTransControl t where
 -- Run ('StateT' s)   ~ forall n b. 'Monad' n             => 'StateT' s   n b -> n (a, s)
 -- Run ('WriterT' w)  ~ forall n b. ('Monad' n, 'Monoid' w) => 'WriterT' w  n b -> n (a, w)
 -- Run ('RWST' r w s) ~ forall n b. ('Monad' n, 'Monoid' w) => 'RWST' r w s n b -> n (a, s, w)
+-- @
+--
+-- This type is usually satisfied by the @run@ function of a transformer:
+--
+-- @
+-- 'flip' 'runReaderT' :: r -> Run ('ReaderT' r)
+-- 'flip' 'runStateT'  :: s -> Run ('StateT' s)
+-- 'runMaybeT'       ::      Run 'MaybeT'
 -- @
 type Run t = forall n b. Monad n => t n b -> n (StT t b)
 
