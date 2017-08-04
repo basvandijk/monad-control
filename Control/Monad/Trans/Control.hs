@@ -121,6 +121,39 @@ import Prelude (id)
 -- MonadTransControl type class
 --------------------------------------------------------------------------------
 
+-- | The @MonadTransControl@ type class is a stronger version of @'MonadTrans'@:
+--
+-- Instances of @'MonadTrans'@ know how to @'lift'@ actions in the base monad to
+-- the transformed monad. These lifted actions, however, are completely unaware
+-- of the monadic state added by the transformer.
+--
+-- @'MonadTransControl'@ instances are aware of the monadic state of the
+-- transformer and allow to save and restore this state.
+--
+-- This allows to lift functions that have a monad transformer in both positive
+-- and negative position. Take, for example, the function
+--
+-- @
+-- withFile :: FilePath -> IOMode -> (Handle -> IO r) -> IO r
+-- @
+--
+-- @'MonadTrans'@ instances can only lift the return type of the @withFile@
+-- function:
+--
+-- @
+-- withFileLifted :: MonadTrans t => FilePath -> IOMode -> (Handle -> IO r) -> t IO r
+-- withFileLifted file mode action = lift (withFile file mode action)
+-- @
+--
+-- However, @'MonadTrans'@ is not powerful enough to make @withFileLifted@
+-- accept a function that returns @t IO@. The reason is that we need to take
+-- away the transformer layer in order to pass the function to @'withFile'@.
+-- @'MonadTransControl'@ allows us to do this:
+--
+-- @
+-- withFileLifted' :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+-- withFileLifted' file mode action = liftWith $ \\unlift -> withFile file mode (unlift action)
+-- @
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
   --
