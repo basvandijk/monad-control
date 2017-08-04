@@ -485,9 +485,9 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 --------------------------------------------------------------------------------
 
 class MonadBase b m => MonadBaseControl b m | m -> b where
-    -- | Monadic state of @m@.
+    -- | Monadic state that @m@ adds to the base monad @b@.
     --
-    -- For all non-transformer monads, @StM m a ~ a@:
+    -- For all base (non-transformed) monads, @StM m a ~ a@:
     --
     -- @
     -- StM 'IO'         a ~ a
@@ -500,9 +500,9 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- StM ('ST' s)     a ~ a
     -- @
     --
-    -- All transformer monads\' 'StM' depends on both the monadic state of the
-    -- transformer (given by its 'StT' from 'MonadTransControl'), as well as its
-    -- inner monad's monadic state, given by its 'StM' from 'MonadBaseControl':
+    -- If @m@ is a transformed monad, @m ~ t b@, @'StM'@ is the monadic state of
+    -- the transformer @t@ (given by its 'StT' from 'MonadTransControl'). For a
+    -- transformer stack, @'StM'@ is defined recursively:
     --
     -- @
     -- StM ('IdentityT'  m) a ~ StM m a
@@ -529,7 +529,14 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- The difference with 'liftBase' is that before lifting the base computation
     -- @liftBaseWith@ captures the state of @m@. It then provides the base
     -- computation with a 'RunInBase' function that allows running @m@
-    -- computations in the base monad on the captured state.
+    -- computations in the base monad on the captured state:
+    --
+    -- @
+    -- withFileLifted :: MonadBaseControl IO m => FilePath -> IOMode -> (Handle -> m a) -> m a
+    -- withFileLifted file mode action = liftBaseWith $ \\runInBase -> withFile file mode (runInBase action)
+    -- @
+    --
+    --
     liftBaseWith :: (RunInBase m b -> b a) -> m a
 
     -- | Construct a @m@ computation from the monadic state of @m@ that is
