@@ -484,6 +484,14 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
 -- MonadBaseControl type class
 --------------------------------------------------------------------------------
 
+-- |
+-- == Writing instances
+--
+-- The usual way to write a @'MonadBaseControl'@ instance for a transformer
+-- stack over a base monad @B@ is to write an instance @MonadBaseControl B B@
+-- for the base monad, and @MonadTransControl T@ instances for every transformer
+-- @T@. Instances for @'MonadBaseControl'@ are then simply implemented using
+-- @'ComposeSt'@, @'defaultLiftBaseWith'@, @'defaultRestoreM'@.
 class MonadBase b m => MonadBaseControl b m | m -> b where
     -- | Monadic state that @m@ adds to the base monad @b@.
     --
@@ -505,15 +513,15 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- transformer stack, @'StM'@ is defined recursively:
     --
     -- @
-    -- StM ('IdentityT'  m) a ~ StM m a
-    -- StM ('MaybeT'     m) a ~ StM m ('Maybe' a)
-    -- StM ('ErrorT' e   m) a ~ 'Error' e => StM m ('Either' e a)
-    -- StM ('ExceptT' e  m) a ~ StM m ('Either' e a)
-    -- StM ('ListT'      m) a ~ StM m [a]
-    -- StM ('ReaderT' r  m) a ~ StM m a
-    -- StM ('StateT' s   m) a ~ StM m (a, s)
-    -- StM ('WriterT' w  m) a ~ 'Monoid' w => StM m (a, w)
-    -- StM ('RWST' r w s m) a ~ 'Monoid' w => StM m (a, s, w)
+    -- StM ('IdentityT'  m) a ~ 'ComposeSt' 'IdentityT' m a ~ StM m a
+    -- StM ('MaybeT'     m) a ~ 'ComposeSt' 'MaybeT'    m a ~ StM m ('Maybe' a)
+    -- StM ('ErrorT' e   m) a ~ 'ComposeSt' 'ErrorT'    m a ~ 'Error' e => StM m ('Either' e a)
+    -- StM ('ExceptT' e  m) a ~ 'ComposeSt' 'ExceptT'   m a ~ StM m ('Either' e a)
+    -- StM ('ListT'      m) a ~ 'ComposeSt' 'ListT'     m a ~ StM m [a]
+    -- StM ('ReaderT' r  m) a ~ 'ComposeSt' 'ReaderT'   m a ~ StM m a
+    -- StM ('StateT' s   m) a ~ 'ComposeSt' 'StateT'    m a ~ StM m (a, s)
+    -- StM ('WriterT' w  m) a ~ 'ComposeSt' 'WriterT'   m a ~ 'Monoid' w => StM m (a, w)
+    -- StM ('RWST' r w s m) a ~ 'ComposeSt' 'RWST'      m a ~ 'Monoid' w => StM m (a, s, w)
     -- @
     type StM m a :: *
 
@@ -536,7 +544,8 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- withFileLifted file mode action = liftBaseWith $ \\runInBase -> withFile file mode (runInBase action)
     -- @
     --
-    --
+    -- @'liftBaseWith'@ is usually not implemented directly, but using
+    -- @'defaultLiftBaseWith'@.
     liftBaseWith :: (RunInBase m b -> b a) -> m a
 
     -- | Construct a @m@ computation from the monadic state of @m@ that is
@@ -545,6 +554,9 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- Instances should satisfy:
     --
     -- @liftBaseWith (\\runInBase -> runInBase m) >>= restoreM = m@
+    --
+    -- @'restoreM'@ is usually not implemented directly, but using
+    -- @'defaultRestoreM'@.
     restoreM :: StM m a -> m a
 
 -- | A function that runs a @m@ computation on the monadic state that was
@@ -567,6 +579,8 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
 -- RunInBase ('WriterT' w  m) b ~ forall a. 'Monoid' w => 'WriterT' w  m a -> b ('StM' m (a, w))
 -- RunInBase ('RWST' r w s m) b ~ forall a. 'Monoid' w => 'RWST' r w s m a -> b ('StM' m (a, s, w))
 -- @
+--
+-- For a transformed base monad @m ~ t b@, @'RunInBase m b' ~ 'Run' t@.
 type RunInBase m b = forall a. m a -> b (StM m a)
 
 
