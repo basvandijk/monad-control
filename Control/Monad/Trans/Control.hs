@@ -295,8 +295,8 @@ type Run t = forall n b. Monad n => t n b -> n (StT t b)
 -- $MonadTransControlDefaults
 --
 -- The following functions can be used to define a 'MonadTransControl' instance
--- for a monad transformer which simply wraps another monad transformer which
--- already has a @MonadTransControl@ instance. For example:
+-- for a monad transformer which simply is a newtype around another monad
+-- transformer which already has a @MonadTransControl@ instance. For example:
 --
 -- @
 -- {-\# LANGUAGE GeneralizedNewtypeDeriving \#-}
@@ -338,6 +338,8 @@ defaultRestoreT t = t . restoreT
 -------------------------------------------------------------------------------
 
 -- $MonadTransControlDefaults2
+--
+-- == Defaults for a stack of two
 --
 -- The following functions can be used to define a 'MonadTransControl' instance
 -- for a monad transformer stack of two.
