@@ -152,7 +152,7 @@ import Prelude (id)
 --
 -- @
 -- withFileLifted' :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
--- withFileLifted' file mode action = liftWith $ \\unlift -> withFile file mode (unlift action)
+-- withFileLifted' file mode action = liftWith $ \\run -> withFile file mode (run action)
 -- @
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
@@ -198,7 +198,12 @@ class MonadTrans t => MonadTransControl t where
   -- The difference with 'lift' is that before lifting the @m@ computation
   -- @liftWith@ captures the state of @t@. It then provides the @m@
   -- computation with a 'Run' function that allows running @t n@ computations in
-  -- @n@ (for all @n@) on the captured state.
+  -- @n@ (for all @n@) on the captured state, e.g.
+  --
+  -- @
+  -- withFileLifted :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+  -- withFileLifted file mode action = liftWith $ \\run -> withFile file mode (run action)
+  -- @
   --
   -- If the @Run@ function is ignored, @liftWith@ coincides with @lift@:
   --
