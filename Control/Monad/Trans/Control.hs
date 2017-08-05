@@ -711,6 +711,16 @@ TRANS_CTX(Monoid w,        RWST r w s)
 --------------------------------------------------------------------------------
 
 -- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
+--
+-- Example:
+--
+-- @
+-- liftedBracket :: MonadBaseControl IO m => m a -> (a -> m b) -> (a -> m c) -> m c
+-- liftedBracket acquire release action = control $ \\runInBase ->
+--     bracket (runInBase acquire)
+--             (\\saved -> runInBase (restoreM saved >>= release))
+--             (\\saved -> runInBase (restoreM saved >>= action))
+-- @
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINABLE control #-}
@@ -740,11 +750,15 @@ captureM = liftBaseWith $ \runInBase -> runInBase (return ())
 -- | @liftBaseOp@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
 --
--- @((a -> b c) -> b c)@ to: @('MonadBaseControl' b m => (a -> m c) -> m c)@.
+-- @((a -> b c) -> b c)@
+--
+-- to:
+--
+-- @('MonadBaseControl' b m => (a -> m c) -> m c)@
 --
 -- For example:
 --
--- @liftBaseOp alloca :: 'MonadBaseControl' 'IO' m => (Ptr a -> m c) -> m c@
+-- @liftBaseOp alloca :: (Storable a, 'MonadBaseControl' 'IO' m) => (Ptr a -> m c) -> m c@
 liftBaseOp :: MonadBaseControl b m
            => ((a -> b (StM m c)) -> b (StM m d))
            -> ((a ->        m c)  ->        m d)
@@ -754,7 +768,11 @@ liftBaseOp f = \g -> control $ \runInBase -> f $ runInBase . g
 -- | @liftBaseOp_@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
 --
--- @(b a -> b a)@ to: @('MonadBaseControl' b m => m a -> m a)@.
+-- @(b a -> b a)@
+--
+-- to:
+--
+-- @('MonadBaseControl' b m => m a -> m a)@
 --
 -- For example:
 --
@@ -768,7 +786,11 @@ liftBaseOp_ f = \m -> control $ \runInBase -> f $ runInBase m
 -- | @liftBaseDiscard@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
 --
--- @(b () -> b a)@ to: @('MonadBaseControl' b m => m () -> m a)@.
+-- @(b () -> b a)@
+--
+-- to:
+--
+-- @('MonadBaseControl' b m => m () -> m a)@
 --
 -- Note that, while the argument computation @m ()@ has access to the captured
 -- state, all its side-effects in @m@ are discarded. It is run only for its
@@ -784,7 +806,11 @@ liftBaseDiscard f = \m -> liftBaseWith $ \runInBase -> f $ void $ runInBase m
 -- | @liftBaseOpDiscard@ is a particular application of 'liftBaseWith' that allows
 -- lifting control operations of type:
 --
--- @((a -> b ()) -> b c)@ to: @('MonadBaseControl' b m => (a -> m ()) -> m c)@.
+-- @((a -> b ()) -> b c)@
+--
+-- to:
+--
+-- @('MonadBaseControl' b m => (a -> m ()) -> m c)@
 --
 -- Note that, while the argument computation @m ()@ has access to the captured
 -- state, all its side-effects in @m@ are discarded. It is run only for its
