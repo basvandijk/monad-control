@@ -35,6 +35,33 @@ that is an instance of @MonadBase@ or @MonadBaseControl@.
 See the following tutorial by Michael Snoyman on how to use this package:
 
 <https://www.yesodweb.com/book/monad-control>
+
+=== Quick implementation guide
+
+Given a base monad @B@ and a stack of transformers @T@:
+
+* Define instances @'MonadTransControl' T@ for all transformers @T@, using the
+  @'defaultLiftWith'@ and @'defaultRestoreT'@ functions on the constructor and
+  deconstructor of @T@.
+
+* Define an instance @'MonadBaseControl' B B@ for the base monad:
+
+    @
+    instance MonadBaseControl B B where
+        type StM B a   = a
+        liftBaseWith f = f 'id'
+        restoreM       = 'return'
+    @
+
+* Define instances @'MonadBaseControl' B m => 'MonadBaseControl' B (T m)@ for
+  all transformers:
+
+    @
+    instance MonadBaseControl b m => MonadBaseControl b (T m) where
+        type StM (T m) a = 'ComposeSt' T m a
+        liftBaseWith f   = 'defaultLiftBaseWith'
+        restoreM         = 'defaultRestoreM'
+    @
 -}
 
 module Control.Monad.Trans.Control
@@ -44,6 +71,7 @@ module Control.Monad.Trans.Control
       -- ** Defaults
       -- $MonadTransControlDefaults
     , RunDefault, defaultLiftWith, defaultRestoreT
+      -- *** Defaults for a stack of two
       -- $MonadTransControlDefaults2
     , RunDefault2, defaultLiftWith2, defaultRestoreT2
 
@@ -343,8 +371,6 @@ defaultRestoreT t = t . restoreT
 -------------------------------------------------------------------------------
 
 -- $MonadTransControlDefaults2
---
--- == Defaults for a stack of two
 --
 -- The following functions can be used to define a 'MonadTransControl' instance
 -- for a monad transformer stack of two.
