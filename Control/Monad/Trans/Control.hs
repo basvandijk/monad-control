@@ -151,8 +151,8 @@ import Prelude (id)
 -- @'MonadTransControl'@ allows us to do this:
 --
 -- @
--- withFileLifted' :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
--- withFileLifted' file mode action = liftWith $ \\run -> withFile file mode (run action)
+-- withFileLifted' :: (Monad (t IO), MonadTransControl t) => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+-- withFileLifted' file mode action = liftWith (\\run -> withFile file mode (run . action)) >>= restoreT . return
 -- @
 class MonadTrans t => MonadTransControl t where
   -- | Monadic state of @t@.
@@ -201,8 +201,8 @@ class MonadTrans t => MonadTransControl t where
   -- @n@ (for all @n@) on the captured state, e.g.
   --
   -- @
-  -- withFileLifted :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
-  -- withFileLifted file mode action = liftWith $ \\run -> withFile file mode (run action)
+  -- withFileLifted :: (Monad (t IO), MonadTransControl t) => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+  -- withFileLifted file mode action = liftWith (\\run -> withFile file mode (run . action)) >>= restoreT . return
   -- @
   --
   -- If the @Run@ function is ignored, @liftWith@ coincides with @lift@:
@@ -215,11 +215,11 @@ class MonadTrans t => MonadTransControl t where
   -- liftWith :: 'Monad' m => (('Monad' n => 'ReaderT' r n b -> n b) -> m a) -> 'ReaderT' r m a
   -- liftWith f = 'ReaderT' (\r -> f (\action -> 'runReaderT' action r))
   --
-  -- liftWith :: 'Monad' m => (('Monad' n => StateT s n b -> n b) -> m a) -> StateT s m a
-  -- liftWith f = 'StateT' (\s -> f (\action -> 'runStateT' action s))
+  -- liftWith :: 'Monad' m => (('Monad' n => 'StateT' s n b -> n (b, s)) -> m a) -> 'StateT' s m a
+  -- liftWith f = 'StateT' (\s -> 'liftM' (\x -> (x, s)) (f (\action -> 'runStateT' action s)))
   --
   -- liftWith :: 'Monad' m => (('Monad' n => 'MaybeT' n b -> n ('Maybe' b)) -> m a) -> 'MaybeT' m a
-  -- liftWith f = 'MaybeT' ('fmap' 'Just' (f 'runMaybeT'))
+  -- liftWith f = 'MaybeT' ('liftM' 'Just' (f 'runMaybeT'))
   -- @
   liftWith :: Monad m => (Run t -> m a) -> t m a
 
@@ -234,8 +234,8 @@ class MonadTrans t => MonadTransControl t where
   -- transformer:
   --
   -- @
-  -- 'ReaderT'   :: (r -> m a) -> 'ReaderT' r m a
-  -- restoreT  ::       m a  -> 'ReaderT' r m a
+  -- 'ReaderT'  :: (r -> m a) -> 'ReaderT' r m a
+  -- restoreT ::       m a  -> 'ReaderT' r m a
   -- restoreT action = 'ReaderT' { runReaderT = 'const' action }
   --
   -- 'StateT'   :: (s -> m (a, s)) -> 'StateT' s m a
@@ -541,7 +541,9 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     --
     -- @
     -- withFileLifted :: MonadBaseControl IO m => FilePath -> IOMode -> (Handle -> m a) -> m a
-    -- withFileLifted file mode action = liftBaseWith $ \\runInBase -> withFile file mode (runInBase action)
+    -- withFileLifted file mode action = liftBaseWith (\\runInBase -> withFile file mode (runInBase . action)) >>= restoreM
+    --                              -- = control $ \\runInBase -> withFile file mode (runInBase . action)
+    --                              -- = liftBaseOp (withFile file mode) action
     -- @
     --
     -- @'liftBaseWith'@ is usually not implemented directly, but using
