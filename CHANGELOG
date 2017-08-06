@@ -1,3 +1,8 @@
+1.0.2.2
+
+* Added some good documentation. Courtesy of Franz Thoma.
+
+
 1.0.2.1
 
 * Refer to Michael Snoyman's excellent tutorial on monad-control.
