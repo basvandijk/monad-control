@@ -675,7 +675,7 @@ type ComposeSt t m a = StM m (StT t a)
 -- monad @b@. It is used in 'defaultLiftBaseWith'.
 type RunInBaseDefault t m b = forall a. t m a -> b (ComposeSt t m a)
 
--- | Default defintion for the 'liftBaseWith' method.
+-- | Default definition for the 'liftBaseWith' method.
 --
 -- Note that it composes a 'liftWith' of @t@ with a 'liftBaseWith' of @m@ to
 -- give a 'liftBaseWith' of @t m@:
