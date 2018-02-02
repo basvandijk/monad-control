@@ -219,9 +219,9 @@ class MonadTrans t => MonadTransControl t where
   --
   -- Instances should satisfy similar laws as the 'MonadTrans' laws:
   --
-  -- @liftWith . const . return = return@
+  -- @liftWith (\\_ -> return a) = return a@
   --
-  -- @liftWith (const (m >>= f)) = liftWith (const m) >>= liftWith . const . f@
+  -- @liftWith (\\_ -> m >>= f)  =  liftWith (\\_ -> m) >>= (\\a -> liftWith (\\_ -> f a))@
   --
   -- The difference with 'lift' is that before lifting the @m@ computation
   -- @liftWith@ captures the state of @t@. It then provides the @m@
@@ -235,7 +235,7 @@ class MonadTrans t => MonadTransControl t where
   --
   -- If the @Run@ function is ignored, @liftWith@ coincides with @lift@:
   --
-  -- @lift f = liftWith (const f)@
+  -- @lift f = liftWith (\\_ -> f)@
   --
   -- Implementations use the @'Run'@ function associated with a transformer:
   --
@@ -556,9 +556,9 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     --
     -- Instances should satisfy similar laws as the 'MonadIO' and 'MonadBase' laws:
     --
-    -- @liftBaseWith . const . return = return@
+    -- @liftBaseWith (\\_ -> return a) = return a@
     --
-    -- @liftBaseWith (const (m >>= f)) = liftBaseWith (const m) >>= liftBaseWith . const . f@
+    -- @liftBaseWith (\\_ -> m >>= f)  =  liftBaseWith (\\_ -> m) >>= (\\a -> liftBaseWith (\\_ -> f a))@
     --
     -- The difference with 'liftBase' is that before lifting the base computation
     -- @liftBaseWith@ captures the state of @m@. It then provides the base
