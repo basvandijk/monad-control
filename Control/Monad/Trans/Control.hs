@@ -241,10 +241,10 @@ class MonadTrans t => MonadTransControl t where
   --
   -- @
   -- liftWith :: 'Monad' m => (('Monad' n => 'ReaderT' r n b -> n b) -> m a) -> 'ReaderT' r m a
-  -- liftWith f = 'ReaderT' (\r -> f (\action -> 'runReaderT' action r))
+  -- liftWith f = 'ReaderT' (\\r -> f (\\action -> 'runReaderT' action r))
   --
   -- liftWith :: 'Monad' m => (('Monad' n => 'StateT' s n b -> n (b, s)) -> m a) -> 'StateT' s m a
-  -- liftWith f = 'StateT' (\s -> 'liftM' (\x -> (x, s)) (f (\action -> 'runStateT' action s)))
+  -- liftWith f = 'StateT' (\\s -> 'liftM' (\\x -> (x, s)) (f (\\action -> 'runStateT' action s)))
   --
   -- liftWith :: 'Monad' m => (('Monad' n => 'MaybeT' n b -> n ('Maybe' b)) -> m a) -> 'MaybeT' m a
   -- liftWith f = 'MaybeT' ('liftM' 'Just' (f 'runMaybeT'))
