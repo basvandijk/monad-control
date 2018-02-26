@@ -1,3 +1,10 @@
+1.0.2.3
+
+* Correct spelling mistake. Courtesy of Edward Betts.
+
+* Support transformers-compat-0.6.
+
+
 1.0.2.2
 
 * Added some good documentation. Courtesy of Franz Thoma.
