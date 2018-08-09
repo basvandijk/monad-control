@@ -84,6 +84,7 @@ module Control.Monad.Trans.Control
 
       -- * Utility functions
     , control, embed, embed_, captureT, captureM
+    , controlT
 
     , liftBaseOp, liftBaseOp_
 
@@ -750,6 +751,21 @@ TRANS_CTX(Monoid w,        RWST r w s)
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINABLE control #-}
+
+-- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
+--
+-- Example:
+--
+-- @
+-- liftedBracket :: MonadTransControl t => (  m a -> (a ->   m b) -> (a ->   m c) ->   m c)
+--                                      -> (t m a -> (a -> t m b) -> (a -> t m c) -> t m c)
+-- liftedBracket recbracket acquire release action = controlT $ \\run ->
+--     recbracket (run acquire)
+--                (\\saved -> run (restoreT saved >>= release))
+--                (\\saved -> run (restoreT saved >>= action))
+-- @
+controlT :: MonadTransControl t => (Run t -> m (StT t a)) -> t m a
+controlT f = liftWith f >>= restoreT . return
 
 -- | Embed a transformer function as an function in the base monad returning a
 -- mutated transformer state.
