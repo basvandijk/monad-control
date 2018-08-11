@@ -83,7 +83,7 @@ module Control.Monad.Trans.Control
     , ComposeSt, RunInBaseDefault, defaultLiftBaseWith, defaultRestoreM
 
       -- * Utility functions
-    , control, embed, embed_, captureT, captureM
+    , control, controlT, embed, embed_, captureT, captureM
 
     , liftBaseOp, liftBaseOp_
 
@@ -750,6 +750,13 @@ TRANS_CTX(Monoid w,        RWST r w s)
 control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINABLE control #-}
+
+-- | Lift a computation and restore the monadic state immediately:
+-- @controlT f = 'liftWith' f >>= 'restoreT' . return@.
+controlT :: (MonadTransControl t, Monad (t m), Monad m)
+         => (Run t -> m (StT t a)) -> t m a
+controlT f = liftWith f >>= restoreT . return
+{-# INLINABLE controlT #-}
 
 -- | Embed a transformer function as an function in the base monad returning a
 -- mutated transformer state.
