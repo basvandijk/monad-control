@@ -752,7 +752,7 @@ control :: MonadBaseControl b m => (RunInBase m b -> b (StM m a)) -> m a
 control f = liftBaseWith f >>= restoreM
 {-# INLINABLE control #-}
 
--- | An often used composition: @control f = 'liftBaseWith' f >>= 'restoreM'@
+-- | 'control' for lifting through a single layer: @controlT f = 'liftBaseWith' f >>= 'restoreM'@
 --
 -- Example:
 --
@@ -766,6 +766,7 @@ control f = liftBaseWith f >>= restoreM
 -- @
 controlT :: MonadTransControl t => (Run t -> m (StT t a)) -> t m a
 controlT f = liftWith f >>= restoreT . return
+{-# INLINABLE control #-}
 
 -- | Embed a transformer function as an function in the base monad returning a
 -- mutated transformer state.
