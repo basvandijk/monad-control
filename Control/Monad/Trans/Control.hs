@@ -560,6 +560,11 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     --
     -- @liftBaseWith (\\_ -> m >>= f)  =  liftBaseWith (\\_ -> m) >>= (\\a -> liftBaseWith (\\_ -> f a))@
     --
+    -- As <https://stackoverflow.com/a/58106822/1477667 Li-yao Xia explains>, parametricity
+    -- guarantees that
+    --
+    -- @f <$> liftBaseWith q = liftBaseWith $ \runInBase -> f <$> q runInBase@
+    --
     -- The difference with 'liftBase' is that before lifting the base computation
     -- @liftBaseWith@ captures the state of @m@. It then provides the base
     -- computation with a 'RunInBase' function that allows running @m@
