@@ -129,6 +129,10 @@ import Control.Monad.Trans.Except   ( ExceptT  (ExceptT),   runExceptT )
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
 import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT), runWriterT )
+#if MIN_VERSION_transformers(0,5,6)
+import qualified Control.Monad.Trans.RWS.CPS    as CPS ( RWST   , rwsT   , runRWST )
+import qualified Control.Monad.Trans.Writer.CPS as CPS ( WriterT, writerT, runWriterT )
+#endif
 
 import Data.Functor.Identity ( Identity )
 
@@ -505,6 +509,24 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
+#if MIN_VERSION_transformers(0,5,6)
+instance Monoid w => MonadTransControl (CPS.WriterT w) where
+    type StT (CPS.WriterT w) a = (a, w)
+    liftWith f = CPS.writerT $ liftM (\x -> (x, mempty))
+                                 (f $ CPS.runWriterT)
+    restoreT = CPS.writerT
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
+instance Monoid w => MonadTransControl (CPS.RWST r w s) where
+    type StT (CPS.RWST r w s) a = (a, s, w)
+    liftWith f =
+        CPS.rwsT $ \r s -> liftM (\x -> (x, s, mempty))
+                                    (f $ \t -> CPS.runRWST t r s)
+    restoreT mSt = CPS.rwsT $ \_ _ -> mSt
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+#endif
 
 --------------------------------------------------------------------------------
 -- MonadBaseControl type class
@@ -735,6 +757,10 @@ TRANS_CTX(Monoid w, Strict.WriterT w)
 TRANS_CTX(Monoid w,        WriterT w)
 TRANS_CTX(Monoid w, Strict.RWST r w s)
 TRANS_CTX(Monoid w,        RWST r w s)
+#if MIN_VERSION_transformers(0,5,6)
+TRANS_CTX(Monoid w,    CPS.WriterT w)
+TRANS_CTX(Monoid w,    CPS.RWST r w s)
+#endif
 
 
 --------------------------------------------------------------------------------
