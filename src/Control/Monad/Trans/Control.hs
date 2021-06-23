@@ -7,9 +7,7 @@
            , UndecidableInstances
            , MultiParamTypeClasses #-}
 
-#if __GLASGOW_HASKELL__ >= 702
 {-# LANGUAGE Safe #-}
-#endif
 
 #if MIN_VERSION_transformers(0,4,0)
 -- Hide warnings for the deprecated ErrorT transformer:
@@ -104,11 +102,11 @@ import Control.Monad ( Monad, (>>=), return, liftM )
 import System.IO     ( IO )
 import Data.Maybe    ( Maybe )
 import Data.Either   ( Either )
+import Control.Monad ( void )
+import Prelude       ( id )
 
-#if MIN_VERSION_base(4,4,0)
 import           Control.Monad.ST.Lazy.Safe           ( ST )
 import qualified Control.Monad.ST.Safe      as Strict ( ST )
-#endif
 
 -- from stm:
 import Control.Monad.STM ( STM )
@@ -135,15 +133,6 @@ import Data.Functor.Identity ( Identity )
 -- from transformers-base:
 import Control.Monad.Base ( MonadBase )
 
-#if MIN_VERSION_base(4,3,0)
-import Control.Monad ( void )
-#else
-import Data.Functor (Functor, fmap)
-void :: Functor f => f a -> f ()
-void = fmap (const ())
-#endif
-
-import Prelude (id)
 
 --------------------------------------------------------------------------------
 -- MonadTransControl type class
@@ -638,10 +627,8 @@ BASE(Identity)
 
 BASE(STM)
 
-#if MIN_VERSION_base(4,4,0)
 BASE(Strict.ST s)
 BASE(       ST s)
-#endif
 
 #undef BASE
 
@@ -736,6 +723,9 @@ TRANS_CTX(Monoid w,        WriterT w)
 TRANS_CTX(Monoid w, Strict.RWST r w s)
 TRANS_CTX(Monoid w,        RWST r w s)
 
+#undef BODY
+#undef TRANS
+#undef TRANS_CTX
 
 --------------------------------------------------------------------------------
 -- * Utility functions

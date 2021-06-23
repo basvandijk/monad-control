@@ -1,17 +1,19 @@
-Name:                monad-control
-Version:             1.0.2.3
-Synopsis:            Lift control operations, like exception catching, through monad transformers
-License:             BSD3
-License-file:        LICENSE
-Author:              Bas van Dijk, Anders Kaseorg
-Maintainer:          Bas van Dijk <v.dijk.bas@gmail.com>
-Copyright:           (c) 2011 Bas van Dijk, Anders Kaseorg
-Homepage:            https://github.com/basvandijk/monad-control
-Bug-reports:         https://github.com/basvandijk/monad-control/issues
-Category:            Control
-Build-type:          Simple
-Cabal-version:       1.12
-Description:
+name:               monad-control
+version:            1.0.2.3
+synopsis:
+  Lift control operations, like exception catching, through monad transformers
+
+license:            BSD3
+license-file:       LICENSE
+author:             Bas van Dijk, Anders Kaseorg
+maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>, Bas van Dijk <v.dijk.bas@gmail.com>
+copyright:          (c) 2011 Bas van Dijk, Anders Kaseorg
+homepage:           https://github.com/basvandijk/monad-control
+bug-reports:        https://github.com/basvandijk/monad-control/issues
+category:           Control
+build-type:         Simple
+cabal-version:      1.12
+description:
   This package defines the type class @MonadBaseControl@, a subset of
   @MonadBase@ into which generic control operations such as @catch@ can be
   lifted from @IO@ or any other base monad. Instances are based on monad
@@ -28,19 +30,22 @@ Description:
   and exploits the @RankNTypes@ and @TypeFamilies@ language extensions to
   simplify and speedup most definitions.
 
-extra-source-files:  README.markdown, CHANGELOG
+extra-source-files:
+  CHANGELOG
+  README.markdown
+
 tested-with:
-  GHC==7.4.2,
-  GHC==7.6.3,
-  GHC==7.8.4,
-  GHC==7.10.3,
-  GHC==8.0.2,
-  GHC==8.2.2,
-  GHC==8.4.4,
-  GHC==8.6.5,
-  GHC==8.8.4,
-  GHC==8.10.4,
-  GHC==9.0.1
+  GHC ==7.4.2
+   || ==7.6.3
+   || ==7.8.4
+   || ==7.10.3
+   || ==8.0.2
+   || ==8.2.2
+   || ==8.4.4
+   || ==8.6.5
+   || ==8.8.4
+   || ==8.10.4
+   || ==9.0.1
 
 --------------------------------------------------------------------------------
 
@@ -50,14 +55,15 @@ source-repository head
 
 --------------------------------------------------------------------------------
 
-Library
+library
   default-language: Haskell2010
-  Exposed-modules: Control.Monad.Trans.Control
+  hs-source-dirs:   src
+  ghc-options:      -Wall
+  exposed-modules:  Control.Monad.Trans.Control
+  build-depends:
+      base                 >=4.5   && <5
+    , stm                  >=2.3   && <3
+    , transformers         >=0.2   && <0.6
+    , transformers-base    >=0.4.4 && <0.5
+    , transformers-compat  >=0.3   && <0.7
 
-  Build-depends: base                 >= 4.5   && < 5
-               , stm                  >= 2.3   && < 3
-               , transformers         >= 0.2   && < 0.6
-               , transformers-compat  >= 0.3   && < 0.7
-               , transformers-base    >= 0.4.4 && < 0.5
-
-  Ghc-options: -Wall
