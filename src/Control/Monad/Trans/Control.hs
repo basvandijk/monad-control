@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP
            , NoImplicitPrelude
+           , DeriveFunctor
            , RankNTypes
            , TypeFamilies
            , FunctionalDependencies
@@ -7,12 +8,11 @@
            , UndecidableInstances
            , MultiParamTypeClasses #-}
 
-{-# LANGUAGE Safe #-}
+-- We would be Safe if Data.Coerce were.
+{-# LANGUAGE Trustworthy #-}
 
-#if MIN_VERSION_transformers(0,4,0)
 -- Hide warnings for the deprecated ErrorT transformer:
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
-#endif
 
 {- |
 Copyright   :  Bas van Dijk, Anders Kaseorg
@@ -73,6 +73,11 @@ module Control.Monad.Trans.Control
       -- $MonadTransControlDefaults2
     , RunDefault2, defaultLiftWith2, defaultRestoreT2
 
+      -- ** Specific state functors
+    , StateStT (..)
+    , WriterStT (..)
+    , RwsStT (..)
+
       -- * MonadBaseControl
     , MonadBaseControl (..), RunInBase
 
@@ -97,16 +102,21 @@ module Control.Monad.Trans.Control
 
 -- from base:
 import Data.Function ( (.), ($), const )
+import Data.Functor  ( Functor, fmap )
 import Data.Monoid   ( Monoid, mempty )
-import Control.Monad ( Monad, (>>=), return, liftM )
+import Control.Monad ( Monad, (>>=), return )
 import System.IO     ( IO )
 import Data.Maybe    ( Maybe )
 import Data.Either   ( Either )
 import Control.Monad ( void )
-import Prelude       ( id )
+import Data.Kind     ( Type )
+import Data.Coerce   ( Coercible, coerce )
 
 import           Control.Monad.ST.Lazy.Safe           ( ST )
 import qualified Control.Monad.ST.Safe      as Strict ( ST )
+
+import Data.Functor.Identity ( Identity(..) )
+import Data.Functor.Compose ( Compose(..) )
 
 -- from stm:
 import Control.Monad.STM ( STM )
@@ -128,7 +138,6 @@ import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),   
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
 import qualified Control.Monad.Trans.Writer.Strict as Strict ( WriterT(WriterT), runWriterT )
 
-import Data.Functor.Identity ( Identity )
 
 -- from transformers-base:
 import Control.Monad.Base ( MonadBase )
@@ -201,7 +210,7 @@ class MonadTrans t => MonadTransControl t where
   -- StT ('WriterT' w)  a ~ 'Monoid' w => (a, w)
   -- StT ('RWST' r w s) a ~ 'Monoid' w => (a, s, w)
   -- @
-  type StT t a :: *
+  type StT t :: Type -> Type
 
   -- | @liftWith@ is similar to 'lift' in that it lifts a computation from
   -- the argument monad to the constructed monad.
@@ -233,10 +242,10 @@ class MonadTrans t => MonadTransControl t where
   -- liftWith f = 'ReaderT' (\\r -> f (\\action -> 'runReaderT' action r))
   --
   -- liftWith :: 'Monad' m => (('Monad' n => 'StateT' s n b -> n (b, s)) -> m a) -> 'StateT' s m a
-  -- liftWith f = 'StateT' (\\s -> 'liftM' (\\x -> (x, s)) (f (\\action -> 'runStateT' action s)))
+  -- liftWith f = 'StateT' (\\s -> 'fmap' (\\x -> (x, s)) (f (\\action -> 'runStateT' action s)))
   --
   -- liftWith :: 'Monad' m => (('Monad' n => 'MaybeT' n b -> n ('Maybe' b)) -> m a) -> 'MaybeT' m a
-  -- liftWith f = 'MaybeT' ('liftM' 'Just' (f 'runMaybeT'))
+  -- liftWith f = 'MaybeT' ('fmap' 'Just' (f 'runMaybeT'))
   -- @
   liftWith :: Monad m => (Run t -> m a) -> t m a
 
@@ -309,6 +318,14 @@ class MonadTrans t => MonadTransControl t where
 -- @
 type Run t = forall n b. Monad n => t n b -> n (StT t b)
 
+-------------------------------------------------------------------------------
+-- fmapCoerce
+-------------------------------------------------------------------------------
+
+-- In some future this might be runtime zero-cost, but not yet.
+fmapCoerce :: (Functor f, Coercible a b) => f a -> f b
+fmapCoerce = fmap coerce
+{-# INLINE fmapCoerce #-}
 
 --------------------------------------------------------------------------------
 -- Defaults for MonadTransControl
@@ -402,98 +419,105 @@ defaultRestoreT2 t = t . restoreT . restoreT
 --------------------------------------------------------------------------------
 
 instance MonadTransControl IdentityT where
-    type StT IdentityT a = a
-    liftWith f = IdentityT $ f $ runIdentityT
-    restoreT = IdentityT
+    type StT IdentityT = Identity
+    liftWith f = IdentityT $ f $ fmapCoerce .  runIdentityT
+    restoreT = IdentityT . fmapCoerce
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance MonadTransControl MaybeT where
-    type StT MaybeT a = Maybe a
-    liftWith f = MaybeT $ liftM return $ f $ runMaybeT
+    type StT MaybeT = Maybe
+    liftWith f = MaybeT $ fmap return $ f $ runMaybeT
     restoreT = MaybeT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance Error e => MonadTransControl (ErrorT e) where
-    type StT (ErrorT e) a = Either e a
-    liftWith f = ErrorT $ liftM return $ f $ runErrorT
+    type StT (ErrorT e) = Either e
+    liftWith f = ErrorT $ fmap return $ f $ runErrorT
     restoreT = ErrorT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (ExceptT e) where
-    type StT (ExceptT e) a = Either e a
-    liftWith f = ExceptT $ liftM return $ f $ runExceptT
+    type StT (ExceptT e) = Either e
+    liftWith f = ExceptT $ fmap return $ f $ runExceptT
     restoreT = ExceptT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance MonadTransControl ListT where
-    type StT ListT a = [a]
-    liftWith f = ListT $ liftM return $ f $ runListT
+    type StT ListT = []
+    liftWith f = ListT $ fmap return $ f $ runListT
     restoreT = ListT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (ReaderT r) where
-    type StT (ReaderT r) a = a
-    liftWith f = ReaderT $ \r -> f $ \t -> runReaderT t r
-    restoreT = ReaderT . const
+    type StT (ReaderT r) = Identity
+    liftWith f = ReaderT $ \r -> f $ \t -> fmapCoerce $ runReaderT t r
+    restoreT = ReaderT . const . fmapCoerce
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance MonadTransControl (StateT s) where
-    type StT (StateT s) a = (a, s)
+    type StT (StateT s) = StateStT s
     liftWith f = StateT $ \s ->
-                   liftM (\x -> (x, s))
-                         (f $ \t -> runStateT t s)
-    restoreT = StateT . const
+                   fmap (\x -> (x, s))
+                         (f $ \t -> fmap StateStT $ runStateT t s)
+    restoreT = StateT . const . fmap getStateStT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
+newtype StateStT s a = StateStT { getStateStT :: (a, s) }
+  deriving Functor
+
 instance MonadTransControl (Strict.StateT s) where
-    type StT (Strict.StateT s) a = (a, s)
+    type StT (Strict.StateT s) = StateStT s
     liftWith f = Strict.StateT $ \s ->
-                   liftM (\x -> (x, s))
-                         (f $ \t -> Strict.runStateT t s)
-    restoreT = Strict.StateT . const
+                   fmap (\x -> (x, s))
+                         (f $ \t -> fmap StateStT $ Strict.runStateT t s)
+    restoreT = Strict.StateT . const . fmap getStateStT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (WriterT w) where
-    type StT (WriterT w) a = (a, w)
-    liftWith f = WriterT $ liftM (\x -> (x, mempty))
-                                 (f $ runWriterT)
-    restoreT = WriterT
+    type StT (WriterT w) = WriterStT w
+    liftWith f = WriterT $ fmap (\x -> (x, mempty))
+                                 (f $ fmapCoerce . runWriterT)
+    restoreT = WriterT . fmapCoerce
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
+newtype WriterStT w a = WriterStT { getWriterStT :: (a, w) }
+  deriving Functor
+
 instance Monoid w => MonadTransControl (Strict.WriterT w) where
-    type StT (Strict.WriterT w) a = (a, w)
-    liftWith f = Strict.WriterT $ liftM (\x -> (x, mempty))
-                                        (f $ Strict.runWriterT)
-    restoreT = Strict.WriterT
+    type StT (Strict.WriterT w) = WriterStT w
+    liftWith f = Strict.WriterT $ fmap (\x -> (x, mempty))
+                                        (f $ fmapCoerce . Strict.runWriterT)
+    restoreT = Strict.WriterT . fmapCoerce
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
 instance Monoid w => MonadTransControl (RWST r w s) where
-    type StT (RWST r w s) a = (a, s, w)
-    liftWith f = RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                      (f $ \t -> runRWST t r s)
-    restoreT mSt = RWST $ \_ _ -> mSt
+    type StT (RWST r w s) = RwsStT w s
+    liftWith f = RWST $ \r s -> fmap (\x -> (x, s, mempty))
+                                      (f $ \t -> fmapCoerce $ runRWST t r s)
+    restoreT mSt = RWST $ \_ _ -> fmapCoerce $ mSt
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
+
+newtype RwsStT w s a = RwsStT { getRwsStT :: (a, s, w) }
 
 instance Monoid w => MonadTransControl (Strict.RWST r w s) where
-    type StT (Strict.RWST r w s) a = (a, s, w)
+    type StT (Strict.RWST r w s) = RwsStT w s
     liftWith f =
-        Strict.RWST $ \r s -> liftM (\x -> (x, s, mempty))
-                                    (f $ \t -> Strict.runRWST t r s)
-    restoreT mSt = Strict.RWST $ \_ _ -> mSt
+        Strict.RWST $ \r s -> fmap (\x -> (x, s, mempty))
+                                    (f $ \t -> fmapCoerce $ Strict.runRWST t r s)
+    restoreT mSt = Strict.RWST $ \_ _ -> fmapCoerce $ mSt
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
-
 
 --------------------------------------------------------------------------------
 -- MonadBaseControl type class
@@ -538,7 +562,7 @@ class MonadBase b m => MonadBaseControl b m | m -> b where
     -- StM ('WriterT' w  m) a ~ 'ComposeSt' 'WriterT'   m a ~ 'Monoid' w => StM m (a, w)
     -- StM ('RWST' r w s m) a ~ 'ComposeSt' 'RWST'      m a ~ 'Monoid' w => StM m (a, s, w)
     -- @
-    type StM m a :: *
+    type StM m :: Type -> Type
 
     -- | @liftBaseWith@ is similar to 'liftIO' and 'liftBase' in that it
     -- lifts a base computation to the constructed monad.
@@ -612,9 +636,9 @@ type RunInBase m b = forall a. m a -> b (StM m a)
 
 #define BASE(M)                           \
 instance MonadBaseControl (M) (M) where { \
-    type StM (M) a = a;                   \
-    liftBaseWith f = f id;                \
-    restoreM = return;                    \
+    type StM (M) = Identity;              \
+    liftBaseWith f = f fmapCoerce;        \
+    restoreM = return . coerce;           \
     {-# INLINABLE liftBaseWith #-};       \
     {-# INLINABLE restoreM #-}}
 
@@ -661,7 +685,7 @@ BASE(       ST s)
 -- | Handy type synonym that composes the monadic states of @t@ and @m@.
 --
 -- It can be used to define the 'StM' for new 'MonadBaseControl' instances.
-type ComposeSt t m a = StM m (StT t a)
+type ComposeSt t m = Compose (StM m) (StT t)
 
 -- | A function like 'RunInBase' that runs a monad transformer @t@ in its base
 -- monad @b@. It is used in 'defaultLiftBaseWith'.
@@ -681,7 +705,7 @@ defaultLiftBaseWith :: (MonadTransControl t, MonadBaseControl b m)
                     => (RunInBaseDefault t m b -> b a) -> t m a
 defaultLiftBaseWith = \f -> liftWith $ \run ->
                               liftBaseWith $ \runInBase ->
-                                f $ runInBase . run
+                                f $ fmap Compose . runInBase . run
 {-# INLINABLE defaultLiftBaseWith #-}
 
 -- | Default definition for the 'restoreM' method.
@@ -689,7 +713,7 @@ defaultLiftBaseWith = \f -> liftWith $ \run ->
 -- Note that: @defaultRestoreM = 'restoreT' . 'restoreM'@
 defaultRestoreM :: (MonadTransControl t, MonadBaseControl b m)
                 => ComposeSt t m a -> t m a
-defaultRestoreM = restoreT . restoreM
+defaultRestoreM = restoreT . restoreM . getCompose
 {-# INLINABLE defaultRestoreM #-}
 
 
@@ -698,7 +722,7 @@ defaultRestoreM = restoreT . restoreM
 --------------------------------------------------------------------------------
 
 #define BODY(T) {                         \
-    type StM (T m) a = ComposeSt (T) m a; \
+    type StM (T m) = ComposeSt (T) m;     \
     liftBaseWith = defaultLiftBaseWith;   \
     restoreM     = defaultRestoreM;       \
     {-# INLINABLE liftBaseWith #-};       \
