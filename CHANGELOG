@@ -1,6 +1,10 @@
+1.0.3
+
+* Add `controlT`
+* Support transformers-compat-0.7
+
 1.0.2.4
 
-* Support transformers-compat-0.7
 
 1.0.2.3
 
