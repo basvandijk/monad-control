@@ -1,12 +1,14 @@
 name:               monad-control
-version:            1.0.2.3
+version:            1.0.2.4
 synopsis:
   Lift control operations, like exception catching, through monad transformers
 
 license:            BSD3
 license-file:       LICENSE
 author:             Bas van Dijk, Anders Kaseorg
-maintainer:         Oleg Grenrus <oleg.grenrus@iki.fi>, Bas van Dijk <v.dijk.bas@gmail.com>
+maintainer:
+  Oleg Grenrus <oleg.grenrus@iki.fi>, Bas van Dijk <v.dijk.bas@gmail.com>
+
 copyright:          (c) 2011 Bas van Dijk, Anders Kaseorg
 homepage:           https://github.com/basvandijk/monad-control
 bug-reports:        https://github.com/basvandijk/monad-control/issues
@@ -66,4 +68,3 @@ library
     , transformers         >=0.2   && <0.6
     , transformers-base    >=0.4.4 && <0.5
     , transformers-compat  >=0.3   && <0.8
-
