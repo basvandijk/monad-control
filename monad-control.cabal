@@ -65,5 +65,5 @@ library
     , stm                  >=2.3   && <3
     , transformers         >=0.2   && <0.6
     , transformers-base    >=0.4.4 && <0.5
-    , transformers-compat  >=0.3   && <0.7
+    , transformers-compat  >=0.3   && <0.8
 
