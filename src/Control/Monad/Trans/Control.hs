@@ -115,14 +115,17 @@ import Control.Monad.STM ( STM )
 import Control.Monad.Trans.Class    ( MonadTrans )
 
 import Control.Monad.Trans.Identity ( IdentityT(IdentityT), runIdentityT )
-import Control.Monad.Trans.List     ( ListT    (ListT),     runListT )
 import Control.Monad.Trans.Maybe    ( MaybeT   (MaybeT),    runMaybeT )
-import Control.Monad.Trans.Error    ( ErrorT   (ErrorT),    runErrorT, Error )
 import Control.Monad.Trans.Reader   ( ReaderT  (ReaderT),   runReaderT )
 import Control.Monad.Trans.State    ( StateT   (StateT),    runStateT )
 import Control.Monad.Trans.Writer   ( WriterT  (WriterT),   runWriterT )
 import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
 import Control.Monad.Trans.Except   ( ExceptT  (ExceptT),   runExceptT )
+
+#if !(MIN_VERSION_transformers(0,6,0))
+import Control.Monad.Trans.List     ( ListT    (ListT),     runListT )
+import Control.Monad.Trans.Error    ( ErrorT   (ErrorT),    runErrorT, Error )
+#endif
 
 import qualified Control.Monad.Trans.RWS.Strict    as Strict ( RWST   (RWST),    runRWST )
 import qualified Control.Monad.Trans.State.Strict  as Strict ( StateT (StateT),  runStateT )
@@ -415,24 +418,26 @@ instance MonadTransControl MaybeT where
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
+#if !(MIN_VERSION_transformers(0,6,0))
+instance MonadTransControl ListT where
+    type StT ListT a = [a]
+    liftWith f = ListT $ liftM return $ f $ runListT
+    restoreT = ListT
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
 instance Error e => MonadTransControl (ErrorT e) where
     type StT (ErrorT e) a = Either e a
     liftWith f = ErrorT $ liftM return $ f $ runErrorT
     restoreT = ErrorT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
+#endif
 
 instance MonadTransControl (ExceptT e) where
     type StT (ExceptT e) a = Either e a
     liftWith f = ExceptT $ liftM return $ f $ runExceptT
     restoreT = ExceptT
-    {-# INLINABLE liftWith #-}
-    {-# INLINABLE restoreT #-}
-
-instance MonadTransControl ListT where
-    type StT ListT a = [a]
-    liftWith f = ListT $ liftM return $ f $ runListT
-    restoreT = ListT
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
@@ -711,17 +716,20 @@ defaultRestoreM = restoreT . restoreM
 
 TRANS(IdentityT)
 TRANS(MaybeT)
-TRANS(ListT)
 TRANS(ReaderT r)
 TRANS(Strict.StateT s)
 TRANS(       StateT s)
 TRANS(ExceptT e)
 
-TRANS_CTX(Error e,         ErrorT e)
 TRANS_CTX(Monoid w, Strict.WriterT w)
 TRANS_CTX(Monoid w,        WriterT w)
 TRANS_CTX(Monoid w, Strict.RWST r w s)
 TRANS_CTX(Monoid w,        RWST r w s)
+
+#if !(MIN_VERSION_transformers(0,6,0))
+TRANS(ListT)
+TRANS_CTX(Error e,         ErrorT e)
+#endif
 
 #undef BODY
 #undef TRANS
