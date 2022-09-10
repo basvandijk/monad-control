@@ -1,5 +1,5 @@
 name:               monad-control
-version:            1.0.3.1
+version:            1.0.4
 synopsis:
   Lift control operations, like exception catching, through monad transformers
 
@@ -66,5 +66,5 @@ library
       base                 >=4.5   && <5
     , stm                  >=2.3   && <3
     , transformers         >=0.2   && <0.7
-    , transformers-base    >=0.4.4 && <0.5
-    , transformers-compat  >=0.3   && <0.8
+    , transformers-base    >=0.4.6 && <0.5
+    , transformers-compat  >=0.6.1 && <0.8
