@@ -121,6 +121,7 @@ import Control.Monad.Trans.State    ( StateT   (StateT),    runStateT )
 import Control.Monad.Trans.Writer   ( WriterT  (WriterT),   runWriterT )
 import Control.Monad.Trans.RWS      ( RWST     (RWST),      runRWST )
 import Control.Monad.Trans.Except   ( ExceptT  (ExceptT),   runExceptT )
+import Control.Monad.Trans.Accum    ( AccumT   (AccumT),    runAccumT )
 
 #if !(MIN_VERSION_transformers(0,6,0))
 import Control.Monad.Trans.List     ( ListT    (ListT),     runListT )
@@ -499,6 +500,15 @@ instance Monoid w => MonadTransControl (Strict.RWST r w s) where
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
+instance Monoid w => MonadTransControl (AccumT w) where
+    type StT (AccumT w) a = (a, w)
+    liftWith f = AccumT $ \s ->
+                   liftM (\x -> (x, s))
+                         (f $ \t -> runAccumT t s)
+    restoreT = AccumT . const
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
 
 --------------------------------------------------------------------------------
 -- MonadBaseControl type class
@@ -725,6 +735,7 @@ TRANS_CTX(Monoid w, Strict.WriterT w)
 TRANS_CTX(Monoid w,        WriterT w)
 TRANS_CTX(Monoid w, Strict.RWST r w s)
 TRANS_CTX(Monoid w,        RWST r w s)
+TRANS_CTX(Monoid w,        AccumT w)
 
 #if !(MIN_VERSION_transformers(0,6,0))
 TRANS(ListT)
