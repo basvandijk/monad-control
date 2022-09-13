@@ -23,7 +23,7 @@ This module defines the type class 'MonadBaseControl', a subset of
 'MonadBase' into which generic control operations such as @catch@ can be
 lifted from @IO@ or any other base monad. Instances are based on monad
 transformers in 'MonadTransControl', which includes all standard monad
-transformers in the @transformers@ library except @ContT@.
+transformers in the @transformers@ library except @ContT@ and @SelectT@.
 
 See the <http://hackage.haskell.org/package/lifted-base lifted-base>
 package which uses @monad-control@ to lift @IO@
