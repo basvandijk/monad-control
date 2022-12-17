@@ -172,7 +172,7 @@ import Control.Monad.Base ( MonadBase )
 -- @'MonadTransControl'@ allows us to do this:
 --
 -- @
--- withFileLifted' :: (Monad (t IO), MonadTransControl t) => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+-- withFileLifted' :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
 -- withFileLifted' file mode action = liftWith (\\run -> withFile file mode (run . action)) >>= restoreT . return
 -- @
 class MonadTrans t => MonadTransControl t where
@@ -222,7 +222,7 @@ class MonadTrans t => MonadTransControl t where
   -- @n@ (for all @n@) on the captured state, e.g.
   --
   -- @
-  -- withFileLifted :: (Monad (t IO), MonadTransControl t) => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
+  -- withFileLifted :: MonadTransControl t => FilePath -> IOMode -> (Handle -> t IO r) -> t IO r
   -- withFileLifted file mode action = liftWith (\\run -> withFile file mode (run . action)) >>= restoreT . return
   -- @
   --
@@ -382,10 +382,10 @@ defaultRestoreT t = t . restoreT
 
 -- | A function like 'Run' that runs a monad transformer @t@ which wraps the
 -- monad transformers @n@ and @n'@. This is used in 'defaultLiftWith2'.
-type RunDefault2 t n n' = forall m b. (Monad m, Monad (n' m)) => t m b -> m (StT n' (StT n b))
+type RunDefault2 t n n' = forall m b. Monad m => t m b -> m (StT n' (StT n b))
 
 -- | Default definition for the 'liftWith' method.
-defaultLiftWith2 :: (Monad m, Monad (n' m), MonadTransControl n, MonadTransControl n')
+defaultLiftWith2 :: (Monad m, MonadTransControl n, MonadTransControl n')
                  => (forall b.   n (n' m) b -> t m b)     -- ^ Monad constructor
                  -> (forall o b. t o b -> n (n' o) b)     -- ^ Monad deconstructor
                  -> (RunDefault2 t n n' -> m a)
@@ -394,7 +394,7 @@ defaultLiftWith2 t unT = \f -> t $ liftWith $ \run -> liftWith $ \run' -> f $ ru
 {-# INLINABLE defaultLiftWith2 #-}
 
 -- | Default definition for the 'restoreT' method for double 'MonadTransControl'.
-defaultRestoreT2 :: (Monad m, Monad (n' m), MonadTransControl n, MonadTransControl n')
+defaultRestoreT2 :: (Monad m, MonadTransControl n, MonadTransControl n')
                  => (n (n' m) a -> t m a)     -- ^ Monad constructor
                  -> m (StT n' (StT n a))
                  -> t m a
@@ -767,7 +767,7 @@ control f = liftBaseWith f >>= restoreM
 
 -- | Lift a computation and restore the monadic state immediately:
 -- @controlT f = 'liftWith' f >>= 'restoreT' . return@.
-controlT :: (MonadTransControl t, Monad (t m), Monad m)
+controlT :: (MonadTransControl t, Monad m)
          => (Run t -> m (StT t a)) -> t m a
 controlT f = liftWith f >>= restoreT . return
 {-# INLINABLE controlT #-}
@@ -785,7 +785,7 @@ embed_ f = liftBaseWith $ \runInBase -> return (void . runInBase . f)
 {-# INLINABLE embed_ #-}
 
 -- | Capture the current state of a transformer
-captureT :: (MonadTransControl t, Monad (t m), Monad m) => t m (StT t ())
+captureT :: (MonadTransControl t, Monad m) => t m (StT t ())
 captureT = liftWith $ \runInM -> runInM (return ())
 {-# INLINABLE captureT #-}
 
@@ -874,7 +874,7 @@ liftBaseOpDiscard f g = liftBaseWith $ \runInBase -> f $ void . runInBase . g
 
 -- | Transform an action in @t m@ using a transformer that operates on the underlying monad @m@
 liftThrough
-    :: (MonadTransControl t, Monad (t m), Monad m)
+    :: (MonadTransControl t, Monad m)
     => (m (StT t a) -> m (StT t b)) -- ^
     -> t m a -> t m b
 liftThrough f t = do
